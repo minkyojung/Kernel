@@ -116,15 +116,47 @@ export default function ConnectPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-base font-medium">Threads</CardTitle>
-            <Badge variant="secondary">Coming soon</Badge>
+            {connections.find((c) => c.platform === "threads")?.connected ? (
+              <Badge variant="default">Connected</Badge>
+            ) : (
+              <Badge variant="secondary">Not connected</Badge>
+            )}
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Threads integration will be available soon.
-            </p>
-            <Button variant="outline" size="sm" className="mt-3" disabled>
-              Connect Threads
-            </Button>
+            {(() => {
+              const th = connections.find((c) => c.platform === "threads");
+              if (th?.connected) {
+                const days = daysUntilExpiry(th.expires_at!);
+                return (
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium">@{th.username}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Token expires in {days} days
+                    </p>
+                    {days < 14 && (
+                      <Alert variant="destructive">
+                        <AlertDescription>
+                          Token expiring soon. Reconnect to refresh.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    <a href="/api/auth/threads">
+                      <Button variant="outline" size="sm">Reconnect</Button>
+                    </a>
+                  </div>
+                );
+              }
+              return (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Threads account required.
+                  </p>
+                  <a href="/api/auth/threads">
+                    <Button>Connect Threads</Button>
+                  </a>
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       </div>
