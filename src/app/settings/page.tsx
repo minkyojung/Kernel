@@ -1,602 +1,334 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { User, Link2, ChevronRight } from "lucide-react";
+
+interface TokenInfo {
+  platform: string;
+  username: string;
+  expires_at: string;
+}
+
+interface ProfileInfo {
+  bio: string;
+  category: string;
+  content_goal: string;
+  posting_frequency: string;
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  tech: "Tech / AI", beauty: "Beauty", food: "Food", lifestyle: "Lifestyle",
+  fitness: "Fitness", education: "Education", entertainment: "Entertainment",
+  business: "Business", travel: "Travel", fashion: "Fashion", other: "Other",
+};
+
+const GOAL_LABELS: Record<string, string> = {
+  awareness: "Brand Awareness", growth: "Follower Growth",
+  conversion: "Conversion", community: "Community",
+};
+
+const FREQ_LABELS: Record<string, string> = {
+  daily: "Daily", "5_per_week": "5x/wk", "3_per_week": "3x/wk",
+  "2_per_week": "2x/wk", weekly: "Weekly",
+};
+
+export default function SettingsPage() {
+  const [tokens, setTokens] = useState<TokenInfo[]>([]);
+  const [profile, setProfile] = useState<ProfileInfo | null>(null);
+  const [section, setSection] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/status").then(r => r.json()).then(d => setTokens(d.tokens || [])).catch(() => {});
+    fetch("/api/profile").then(r => r.json()).then(d => { if (d.profile?.category) setProfile(d.profile); }).catch(() => {});
+  }, []);
+
+  if (section === "profile") return <ProfileChat onBack={() => setSection(null)} />;
+  if (section === "accounts") return <ConnectedAccounts tokens={tokens} onBack={() => setSection(null)} />;
+
+  const hasProfile = !!profile;
+
+  return (
+    <div className="max-w-lg">
+      <p className="text-sm text-muted-foreground mb-6">Manage your profile and connections.</p>
+
+      <div className="space-y-1">
+        {/* Profile row with inline summary */}
+        <button onClick={() => setSection("profile")} className="w-full flex items-center justify-between px-3 py-3 rounded-md hover:bg-muted/50 transition-colors">
+          <div className="flex items-center gap-3 min-w-0">
+            <User className="w-4 h-4 text-muted-foreground shrink-0" />
+            <div className="text-left min-w-0">
+              <span className="text-sm block">Profile</span>
+              {hasProfile && (
+                <span className="text-xs text-muted-foreground block truncate">
+                  {CATEGORY_LABELS[profile.category] || profile.category} · {GOAL_LABELS[profile.content_goal] || profile.content_goal} · {FREQ_LABELS[profile.posting_frequency] || profile.posting_frequency}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs text-muted-foreground">{hasProfile ? "Edit" : "Set up"}</span>
+            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+          </div>
+        </button>
+
+        <SettingsRow icon={<Link2 className="w-4 h-4" />} label="Connected Accounts" detail={`${tokens.length} connected`} onClick={() => setSection("accounts")} />
+      </div>
+    </div>
+  );
+}
+
+function SettingsRow({ icon, label, detail, onClick }: { icon: React.ReactNode; label: string; detail: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="w-full flex items-center justify-between px-3 py-3 rounded-md hover:bg-muted/50 transition-colors">
+      <div className="flex items-center gap-3">
+        <span className="text-muted-foreground">{icon}</span>
+        <span className="text-sm">{label}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">{detail}</span>
+        <ChevronRight className="w-4 h-4 text-muted-foreground" />
+      </div>
+    </button>
+  );
+}
+
+// --- Connected Accounts ---
+function ConnectedAccounts({ tokens, onBack }: { tokens: TokenInfo[]; onBack: () => void }) {
+  return (
+    <div className="max-w-lg">
+      <Button variant="ghost" size="sm" onClick={onBack} className="mb-4 -ml-2">
+        &larr; Settings
+      </Button>
+      <h1 className="text-xl font-semibold mb-4">Connected Accounts</h1>
+      <div className="space-y-2">
+        {tokens.map((t) => (
+          <div key={t.platform} className="flex items-center justify-between px-3 py-3 rounded-md border border-border">
+            <div>
+              <p className="text-sm font-medium capitalize">{t.platform}</p>
+              <p className="text-xs text-muted-foreground">@{t.username}</p>
+            </div>
+            <Badge variant="secondary">Connected</Badge>
+          </div>
+        ))}
+        {!tokens.find(t => t.platform === "instagram") && (
+          <a href="/api/auth/instagram" className="flex items-center justify-between px-3 py-3 rounded-md border border-dashed border-border hover:bg-muted/50">
+            <span className="text-sm">Instagram</span>
+            <span className="text-xs text-muted-foreground">Connect &rarr;</span>
+          </a>
+        )}
+        {!tokens.find(t => t.platform === "threads") && (
+          <a href="/api/auth/threads" className="flex items-center justify-between px-3 py-3 rounded-md border border-dashed border-border hover:bg-muted/50">
+            <span className="text-sm">Threads</span>
+            <span className="text-xs text-muted-foreground">Connect &rarr;</span>
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// --- Chat-based Profile ---
+interface Message {
+  role: "ai" | "user";
+  text: string;
+  options?: { value: string; label: string }[];
+  field?: string;
+  inputType?: "text" | "textarea" | "select";
+}
 
 const CATEGORIES = [
-  { value: "tech", label: "Tech / AI" },
-  { value: "beauty", label: "Beauty / Skincare" },
-  { value: "food", label: "Food / Cooking" },
-  { value: "lifestyle", label: "Lifestyle / Daily" },
-  { value: "fitness", label: "Fitness / Health" },
-  { value: "education", label: "Education / Tips" },
-  { value: "entertainment", label: "Entertainment" },
-  { value: "business", label: "Business / Startup" },
-  { value: "travel", label: "Travel" },
-  { value: "fashion", label: "Fashion / Style" },
+  { value: "tech", label: "Tech / AI" }, { value: "beauty", label: "Beauty" },
+  { value: "food", label: "Food" }, { value: "lifestyle", label: "Lifestyle" },
+  { value: "fitness", label: "Fitness" }, { value: "education", label: "Education" },
+  { value: "entertainment", label: "Entertainment" }, { value: "business", label: "Business" },
+  { value: "travel", label: "Travel" }, { value: "fashion", label: "Fashion" },
   { value: "other", label: "Other" },
 ];
 
 const GOALS = [
-  { value: "awareness", label: "Brand Awareness", desc: "Reach more people and grow visibility" },
-  { value: "growth", label: "Follower Growth", desc: "Grow your audience and engagement" },
-  { value: "conversion", label: "Conversion", desc: "Drive traffic, sales, or signups" },
-  { value: "community", label: "Community", desc: "Build deeper connections with your audience" },
+  { value: "awareness", label: "Brand Awareness" }, { value: "growth", label: "Follower Growth" },
+  { value: "conversion", label: "Conversion" }, { value: "community", label: "Community" },
 ];
 
 const FORMATS = [
-  { value: "reel", label: "Reels" },
-  { value: "carousel", label: "Carousel" },
-  { value: "image", label: "Single Image" },
-  { value: "mixed", label: "Mixed" },
+  { value: "reel", label: "Reels" }, { value: "carousel", label: "Carousel" },
+  { value: "image", label: "Image" }, { value: "mixed", label: "Mixed" },
 ];
 
 const FREQUENCIES = [
-  { value: "daily", label: "Daily" },
-  { value: "5_per_week", label: "5x / week" },
-  { value: "3_per_week", label: "3x / week" },
-  { value: "2_per_week", label: "2x / week" },
+  { value: "daily", label: "Daily" }, { value: "5_per_week", label: "5x/wk" },
+  { value: "3_per_week", label: "3x/wk" }, { value: "2_per_week", label: "2x/wk" },
   { value: "weekly", label: "Weekly" },
 ];
 
-interface Profile {
-  category: string;
-  target_audience: string;
-  content_goal: string;
-  primary_format: string;
-  posting_frequency: string;
-  competitors: string;
-  bio: string;
+interface ProfileData {
+  bio: string; category: string; content_goal: string; target_audience: string;
+  primary_format: string; posting_frequency: string; competitors: string;
 }
 
-const TOTAL_STEPS = 5;
+const FLOW: Omit<Message, "role">[] = [
+  { text: "Tell me about yourself \u2014 what kind of content do you create?", field: "bio", inputType: "textarea" },
+  { text: "Which category fits best?", field: "category", inputType: "select", options: CATEGORIES },
+  { text: "What\u2019s your main goal?", field: "content_goal", inputType: "select", options: GOALS },
+  { text: "Who\u2019s your target audience?", field: "target_audience", inputType: "text" },
+  { text: "What format do you mostly use?", field: "primary_format", inputType: "select", options: FORMATS },
+  { text: "How often do you post?", field: "posting_frequency", inputType: "select", options: FREQUENCIES },
+  { text: "Any creators you look up to? (optional)", field: "competitors", inputType: "text" },
+];
 
-export default function SettingsPage() {
-  const [profile, setProfile] = useState<Profile>({
-    category: "",
-    target_audience: "",
-    content_goal: "growth",
-    primary_format: "mixed",
-    posting_frequency: "3_per_week",
-    competitors: "[]",
-    bio: "",
+function ProfileChat({ onBack }: { onBack: () => void }) {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [flowIndex, setFlowIndex] = useState(0);
+  const [input, setInput] = useState("");
+  const [profile, setProfile] = useState<ProfileData>({
+    bio: "", category: "", content_goal: "", target_audience: "",
+    primary_format: "", posting_frequency: "", competitors: "[]",
   });
-  const [competitorInput, setCompetitorInput] = useState("");
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [step, setStep] = useState(0);
-  const [isExisting, setIsExisting] = useState(false);
-  const [aiSummary, setAiSummary] = useState<string | null>(null);
-  const [summarizing, setSummarizing] = useState(false);
+  const [done, setDone] = useState(false);
+  const [loadingExisting, setLoadingExisting] = useState(true);
 
   useEffect(() => {
     fetch("/api/profile")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.profile && data.profile.category) {
+      .then(r => r.json())
+      .then(data => {
+        if (data.profile?.category) {
           setProfile(data.profile);
-          setIsExisting(true);
+          setMessages([{ role: "ai", text: "Your profile is set up. Chat to update anything, or redo from scratch." }]);
+          setDone(true);
+        } else {
+          setMessages([{ role: "ai", ...FLOW[0] }]);
         }
       })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .catch(() => setMessages([{ role: "ai", ...FLOW[0] }]))
+      .finally(() => setLoadingExisting(false));
   }, []);
 
-  const competitors: string[] = (() => {
-    try {
-      return JSON.parse(profile.competitors);
-    } catch {
-      return [];
-    }
-  })();
+  const currentStep = FLOW[flowIndex];
 
-  const addCompetitor = () => {
-    const handle = competitorInput.trim().replace(/^@/, "");
-    if (!handle) return;
-    if (competitors.includes(handle)) {
-      toast.error("Already added");
-      return;
+  const handleAnswer = (value: string, label?: string) => {
+    if (!currentStep?.field) return;
+    const updated = { ...profile, [currentStep.field]: currentStep.field === "competitors" ? JSON.stringify(value.split(/[,\s]+/).map(h => h.replace(/^@/, "").trim()).filter(Boolean)) : value };
+    setProfile(updated);
+
+    const newMsgs: Message[] = [...messages, { role: "user", text: label || value }];
+    const next = flowIndex + 1;
+
+    if (next < FLOW.length) {
+      newMsgs.push({ role: "ai", ...FLOW[next] });
+      setMessages(newMsgs);
+      setFlowIndex(next);
+    } else {
+      newMsgs.push({ role: "ai", text: "Saving..." });
+      setMessages(newMsgs);
+      saveProfile(updated, newMsgs);
     }
-    if (competitors.length >= 5) {
-      toast.error("Max 5 accounts");
-      return;
-    }
-    const updated = [...competitors, handle];
-    setProfile({ ...profile, competitors: JSON.stringify(updated) });
-    setCompetitorInput("");
+    setInput("");
   };
 
-  const removeCompetitor = (handle: string) => {
-    const updated = competitors.filter((c) => c !== handle);
-    setProfile({ ...profile, competitors: JSON.stringify(updated) });
-  };
-
-  const canProceed = (): boolean => {
-    switch (step) {
-      case 0: return !!profile.bio.trim();
-      case 1: return !!profile.category;
-      case 2: return !!profile.content_goal;
-      case 3: return true;
-      case 4: return true;
-      default: return false;
-    }
-  };
-
-  const handleSave = async () => {
-    if (!profile.bio.trim()) {
-      toast.error("Please describe your content");
-      return;
-    }
-    if (!profile.category) {
-      toast.error("Please select a category");
-      return;
-    }
+  const saveProfile = async (p: ProfileData, msgs: Message[]) => {
     setSaving(true);
     try {
-      const res = await fetch("/api/profile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profile),
-      });
-      if (!res.ok) throw new Error("Failed to save");
-      toast.success("Profile saved");
-      setIsExisting(true);
-
-      setSummarizing(true);
-      try {
-        const analyzeRes = await fetch("/api/profile/summary", { method: "POST" });
-        const analyzeData = await analyzeRes.json();
-        if (analyzeData.summary) {
-          setAiSummary(analyzeData.summary);
-        }
-      } catch {
-        // AI summary is optional
-      } finally {
-        setSummarizing(false);
-      }
+      await fetch("/api/profile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(p) });
+      const summaryRes = await fetch("/api/profile/summary", { method: "POST" });
+      const { summary } = await summaryRes.json();
+      setMessages([...msgs.slice(0, -1), { role: "ai", text: summary || "Profile saved!" }]);
+      setDone(true);
     } catch {
-      toast.error("Failed to save profile");
+      setMessages([...msgs.slice(0, -1), { role: "ai", text: "Failed to save. Try again?" }]);
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20 text-muted-foreground">
-        Loading...
-      </div>
-    );
-  }
+  if (loadingExisting) return <div className="flex items-center justify-center py-20 text-muted-foreground">Loading...</div>;
 
-  // Existing user: compact edit form
-  if (isExisting && step === 0 && !aiSummary) {
-    return (
-      <div className="space-y-6 max-w-2xl mx-auto">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Profile Settings</h1>
-          <p className="text-sm text-muted-foreground">
-            AI uses this to generate personalized content strategy and performance analysis.
-          </p>
-        </div>
-
-        <Card>
-          <CardContent className="pt-6 space-y-2">
-            <Label className="text-sm font-medium">About You</Label>
-            <p className="text-xs text-muted-foreground">
-              Describe your content and style. This is the most important input for AI analysis.
-            </p>
-            <Textarea
-              placeholder="e.g., I review AI tools and productivity apps. I like breaking down complex concepts into simple explanations with minimal editing style."
-              value={profile.bio}
-              onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
-              rows={3}
-            />
-          </CardContent>
-        </Card>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Card>
-            <CardContent className="pt-6 space-y-2">
-              <Label className="text-sm font-medium">Category</Label>
-              <Select
-                value={profile.category}
-                onValueChange={(v) => v && setProfile({ ...profile, category: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 space-y-2">
-              <Label className="text-sm font-medium">Content Goal</Label>
-              <Select
-                value={profile.content_goal}
-                onValueChange={(v) => v && setProfile({ ...profile, content_goal: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {GOALS.map((g) => (
-                    <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardContent className="pt-6 space-y-2">
-            <Label className="text-sm font-medium">Target Audience</Label>
-            <Input
-              placeholder="e.g., 20-30s developers interested in productivity"
-              value={profile.target_audience}
-              onChange={(e) => setProfile({ ...profile, target_audience: e.target.value })}
-            />
-          </CardContent>
-        </Card>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Card>
-            <CardContent className="pt-6 space-y-2">
-              <Label className="text-sm font-medium">Primary Format</Label>
-              <Select
-                value={profile.primary_format}
-                onValueChange={(v) => v && setProfile({ ...profile, primary_format: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FORMATS.map((f) => (
-                    <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 space-y-2">
-              <Label className="text-sm font-medium">Posting Frequency</Label>
-              <Select
-                value={profile.posting_frequency}
-                onValueChange={(v) => v && setProfile({ ...profile, posting_frequency: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FREQUENCIES.map((f) => (
-                    <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardContent className="pt-6 space-y-3">
-            <Label className="text-sm font-medium">Reference Accounts (optional)</Label>
-            <p className="text-xs text-muted-foreground">
-              Add creators you want to benchmark against. AI will use these as references.
-            </p>
-            <div className="flex gap-2">
-              <Input
-                placeholder="@username"
-                value={competitorInput}
-                onChange={(e) => setCompetitorInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCompetitor(); } }}
-              />
-              <Button variant="outline" onClick={addCompetitor}>Add</Button>
-            </div>
-            {competitors.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {competitors.map((c) => (
-                  <Badge key={c} variant="secondary" className="cursor-pointer gap-1" onClick={() => removeCompetitor(c)}>
-                    @{c} &times;
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <div className="flex justify-end">
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Saving..." : "Save Profile"}
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // AI Summary after save
-  if (aiSummary) {
-    return (
-      <div className="space-y-6 max-w-2xl mx-auto">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Profile Review</h1>
-          <p className="text-sm text-muted-foreground">
-            Here&apos;s how AI understands your profile. Edit if something doesn&apos;t look right.
-          </p>
-        </div>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="whitespace-pre-wrap text-sm leading-relaxed">
-              {aiSummary.split("\n").map((line, i) => {
-                if (line.startsWith("## ")) {
-                  return <h3 key={i} className="mt-4 mb-2 text-base font-semibold first:mt-0">{line.replace("## ", "")}</h3>;
-                }
-                if (line.startsWith("- ")) {
-                  return <p key={i} className="ml-4 my-0.5 text-muted-foreground">{line}</p>;
-                }
-                if (line.trim() === "") return <div key={i} className="h-2" />;
-                return <p key={i} className="my-0.5 text-muted-foreground">{line}</p>;
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="flex gap-3 justify-end">
-          <Button variant="outline" onClick={() => { setAiSummary(null); setIsExisting(true); }}>
-            Edit Profile
-          </Button>
-          <Button onClick={() => window.location.href = "/"}>
-            Go to Dashboard
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // New user: step-by-step onboarding
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
-      <div>
-        <p className="text-xs text-muted-foreground mb-1">
-          {step + 1} / {TOTAL_STEPS}
-        </p>
-        <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-          <div
-            className="h-full bg-primary rounded-full transition-all duration-300"
-            style={{ width: `${((step + 1) / TOTAL_STEPS) * 100}%` }}
-          />
-        </div>
-      </div>
+    <div className="max-w-lg flex flex-col h-[calc(100vh-7rem)]">
+      <Button variant="ghost" size="sm" onClick={onBack} className="mb-2 -ml-2 w-fit">
+        &larr; Settings
+      </Button>
 
-      {/* Step 0: Bio (most important) */}
-      {step === 0 && (
-        <div className="space-y-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              What kind of content do you create?
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Describe freely. AI will use this to build your personalized strategy.
-            </p>
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto space-y-3 pb-4">
+        {messages.map((msg, i) => (
+          <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+              msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"
+            }`}>
+              {msg.role === "ai" ? (
+                <div className="space-y-0.5">
+                  {msg.text.split("\n").map((line, j) => {
+                    if (line.startsWith("## ")) return <p key={j} className="font-semibold mt-2 first:mt-0">{line.replace("## ", "")}</p>;
+                    if (line.startsWith("- ")) return <p key={j} className="ml-3 text-muted-foreground text-xs">{line}</p>;
+                    if (!line.trim()) return <div key={j} className="h-1" />;
+                    return <p key={j}>{line}</p>;
+                  })}
+                </div>
+              ) : msg.text}
+            </div>
           </div>
-          <Textarea
-            placeholder={"Examples:\n• Tech creator who reviews AI tools and productivity apps\n• Self-improvement content for working professionals\n• Cafe hopping and dessert reviews"}
-            value={profile.bio}
-            onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
-            rows={5}
-            className="text-base"
-          />
-          {profile.bio.trim() && (
-            <p className="text-xs text-emerald-500">
-              The more specific you are, the better AI recommendations you&apos;ll get.
-            </p>
-          )}
-        </div>
-      )}
+        ))}
 
-      {/* Step 1: Category */}
-      {step === 1 && (
-        <div className="space-y-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              Which category fits best?
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Pick the closest match for your content.
-            </p>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {CATEGORIES.map((c) => (
-              <button
-                key={c.value}
-                onClick={() => setProfile({ ...profile, category: c.value })}
-                className={`rounded-lg border p-4 text-left text-sm transition-colors ${
-                  profile.category === c.value
-                    ? "border-primary bg-primary/5 font-medium"
-                    : "border-border hover:bg-muted/50"
-                }`}
-              >
-                {c.label}
+        {/* Option pills */}
+        {!done && currentStep?.options && (
+          <div className="flex flex-wrap gap-1.5 pl-1">
+            {currentStep.options.map((opt) => (
+              <button key={opt.value} onClick={() => handleAnswer(opt.value, opt.label)}
+                className="rounded-full border border-border px-3 py-1.5 text-xs hover:bg-muted/50 transition-colors">
+                {opt.label}
               </button>
             ))}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Step 2: Content Goal */}
-      {step === 2 && (
-        <div className="space-y-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              What&apos;s your primary goal?
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              AI will tailor KPIs and strategy to this goal.
-            </p>
+        {saving && (
+          <div className="flex justify-start">
+            <div className="bg-muted rounded-2xl px-4 py-2.5 text-sm text-muted-foreground animate-pulse">Analyzing...</div>
           </div>
-          <RadioGroup
-            value={profile.content_goal}
-            onValueChange={(v) => setProfile({ ...profile, content_goal: v })}
-            className="space-y-3"
-          >
-            {GOALS.map((g) => (
-              <Label
-                key={g.value}
-                htmlFor={`goal-${g.value}`}
-                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors ${
-                  profile.content_goal === g.value
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:bg-muted/50"
-                }`}
-              >
-                <RadioGroupItem value={g.value} id={`goal-${g.value}`} className="mt-0.5" />
-                <div>
-                  <p className="font-medium">{g.label}</p>
-                  <p className="text-xs text-muted-foreground">{g.desc}</p>
-                </div>
-              </Label>
-            ))}
-          </RadioGroup>
-        </div>
-      )}
-
-      {/* Step 3: Format + Frequency + Audience */}
-      {step === 3 && (
-        <div className="space-y-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              Content Style
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Your preferred format, posting frequency, and target audience.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Primary Format</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {FORMATS.map((f) => (
-                <button
-                  key={f.value}
-                  onClick={() => setProfile({ ...profile, primary_format: f.value })}
-                  className={`rounded-lg border p-3 text-sm transition-colors ${
-                    profile.primary_format === f.value
-                      ? "border-primary bg-primary/5 font-medium"
-                      : "border-border hover:bg-muted/50"
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Posting Frequency</Label>
-            <div className="grid grid-cols-3 gap-2">
-              {FREQUENCIES.map((f) => (
-                <button
-                  key={f.value}
-                  onClick={() => setProfile({ ...profile, posting_frequency: f.value })}
-                  className={`rounded-lg border p-3 text-sm transition-colors ${
-                    profile.posting_frequency === f.value
-                      ? "border-primary bg-primary/5 font-medium"
-                      : "border-border hover:bg-muted/50"
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Target Audience</Label>
-            <Input
-              placeholder="e.g., 20-30s developers, designers"
-              value={profile.target_audience}
-              onChange={(e) => setProfile({ ...profile, target_audience: e.target.value })}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Step 4: Reference Accounts */}
-      {step === 4 && (
-        <div className="space-y-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">
-              Reference Accounts (optional)
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Add creators you admire or want to benchmark against. Skip if none.
-            </p>
-          </div>
-
-          <div className="flex gap-2">
-            <Input
-              placeholder="@username"
-              value={competitorInput}
-              onChange={(e) => setCompetitorInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCompetitor(); } }}
-            />
-            <Button variant="outline" onClick={addCompetitor}>Add</Button>
-          </div>
-          {competitors.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {competitors.map((c) => (
-                <Badge key={c} variant="secondary" className="cursor-pointer gap-1" onClick={() => removeCompetitor(c)}>
-                  @{c} &times;
-                </Badge>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Navigation */}
-      <div className="flex justify-between pt-4">
-        <Button
-          variant="ghost"
-          onClick={() => setStep(Math.max(0, step - 1))}
-          disabled={step === 0}
-        >
-          Back
-        </Button>
-        {step < TOTAL_STEPS - 1 ? (
-          <Button
-            onClick={() => setStep(step + 1)}
-            disabled={!canProceed()}
-          >
-            Next
-          </Button>
-        ) : (
-          <Button onClick={handleSave} disabled={saving || !canProceed()}>
-            {saving ? (summarizing ? "Analyzing..." : "Saving...") : "Done"}
-          </Button>
         )}
       </div>
+
+      <Separator />
+
+      {/* Input */}
+      {!done ? (
+        <div className="pt-3 pb-1">
+          {(currentStep?.inputType === "text" || currentStep?.inputType === "textarea") ? (
+            <div className="flex gap-2">
+              {currentStep.inputType === "textarea" ? (
+                <textarea
+                  value={input} onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (input.trim()) handleAnswer(input.trim()); } }}
+                  placeholder="Type here..." rows={2} autoFocus
+                  className="flex-1 resize-none rounded-xl border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              ) : (
+                <input
+                  value={input} onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (input.trim()) handleAnswer(input.trim()); } }}
+                  placeholder={currentStep.field === "competitors" ? "@handle1, @handle2" : "Type here..."} autoFocus
+                  className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              )}
+              <Button size="sm" onClick={() => input.trim() && handleAnswer(input.trim())} disabled={!input.trim()}>Send</Button>
+              {(currentStep.field === "competitors" || currentStep.field === "target_audience") && (
+                <Button size="sm" variant="ghost" onClick={() => handleAnswer(currentStep.field === "competitors" ? "[]" : "", "Skipped")}>Skip</Button>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground px-1">Pick an option above</p>
+          )}
+        </div>
+      ) : (
+        <div className="pt-3 pb-1 flex gap-2 justify-end">
+          <Button variant="outline" size="sm" onClick={() => { setDone(false); setFlowIndex(0); setMessages([{ role: "ai", ...FLOW[0] }]); }}>Redo</Button>
+          <Button size="sm" onClick={() => window.location.href = "/"}>Dashboard</Button>
+        </div>
+      )}
     </div>
   );
 }

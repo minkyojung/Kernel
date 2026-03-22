@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -14,6 +14,7 @@ import {
   formatNumber,
   formatPercent,
 } from "@/lib/metrics";
+import { ExternalLink } from "lucide-react";
 
 export default function PostDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -24,9 +25,7 @@ export default function PostDetailPage() {
     fetch("/api/insights")
       .then((res) => res.json())
       .then((data) => {
-        const found = (data.data || []).find(
-          (m: MediaWithInsight) => m.id === id,
-        );
+        const found = (data.data || []).find((m: MediaWithInsight) => m.id === id);
         setPost(found || null);
       })
       .catch(() => setPost(null))
@@ -34,80 +33,57 @@ export default function PostDetailPage() {
   }, [id]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20 text-muted-foreground">
-        Loading...
-      </div>
-    );
+    return <div className="flex items-center justify-center py-20 text-muted-foreground">Loading...</div>;
   }
 
   if (!post) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-20">
         <p className="text-muted-foreground">Post not found.</p>
-        <a href="/posts">
-          <Button variant="outline">Back to posts</Button>
-        </a>
+        <a href="/posts"><Button variant="outline" size="sm">Back to posts</Button></a>
       </div>
     );
   }
 
+  const dateStr = new Date(post.timestamp).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+
   const metrics = [
     { label: "Reach", value: formatNumber(post.reach ?? 0) },
+    { label: "Likes", value: formatNumber(post.insight_likes ?? post.like_count) },
+    { label: "Saves", value: formatNumber(post.saved ?? 0) },
     { label: "Views", value: formatNumber(post.views ?? 0) },
-    {
-      label: "Likes",
-      value: formatNumber(post.insight_likes ?? post.like_count),
-    },
-    {
-      label: "Comments",
-      value: formatNumber(post.insight_comments ?? post.comments_count),
-    },
-    { label: "Saved", value: formatNumber(post.saved ?? 0) },
+    { label: "Comments", value: formatNumber(post.insight_comments ?? post.comments_count) },
     { label: "Shares", value: formatNumber(post.shares ?? 0) },
   ];
 
   const rates = [
-    { label: "Engagement Rate", value: formatPercent(engagementRate(post)) },
+    { label: "Eng. Rate", value: formatPercent(engagementRate(post)) },
     { label: "Save Rate", value: formatPercent(saveRate(post)) },
     { label: "Share Rate", value: formatPercent(shareRate(post)) },
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <a href="/posts">
-          <Button variant="ghost" size="sm">&larr; Back</Button>
-        </a>
+    <div className="space-y-6 max-w-4xl">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Badge variant="secondary">{post.media_type}</Badge>
-        <span className="text-sm text-muted-foreground">
-          {new Date(post.timestamp).toLocaleDateString("ko-KR", {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })}
-        </span>
+        <span>{dateStr}</span>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Left: Post preview */}
+        {/* Left: Preview */}
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-5">
             {post.media_url && (
               <div className="mb-4 overflow-hidden rounded-lg">
                 {post.media_type === "VIDEO" || post.media_type === "REEL" ? (
-                  <video
-                    src={post.media_url}
-                    controls
-                    className="w-full"
-                  />
+                  <video src={post.media_url} controls className="w-full" />
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={post.media_url}
-                    alt="Post"
-                    className="w-full"
-                  />
+                  <img src={post.media_url} alt="Post" className="w-full" />
                 )}
               </div>
             )}
@@ -117,12 +93,9 @@ export default function PostDetailPage() {
             {post.permalink && (
               <>
                 <Separator className="my-4" />
-                <a
-                  href={post.permalink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Button variant="outline" size="sm">
+                <a href={post.permalink} target="_blank" rel="noopener noreferrer">
+                  <Button variant="outline" size="sm" className="gap-1.5">
+                    <ExternalLink className="w-3.5 h-3.5" />
                     View on Instagram
                   </Button>
                 </a>
@@ -134,53 +107,41 @@ export default function PostDetailPage() {
         {/* Right: Metrics */}
         <div className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Metrics</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-4">
+            <CardContent className="pt-5">
+              <p className="text-xs text-muted-foreground mb-4 font-medium uppercase tracking-wider">Metrics</p>
+              <div className="grid grid-cols-3 gap-y-5">
                 {metrics.map((m) => (
-                  <div key={m.label} className="text-center">
-                    <p className="text-2xl font-bold">{m.value}</p>
+                  <div key={m.label}>
+                    <p className="text-xl font-semibold tracking-tight">{m.value}</p>
                     <p className="text-xs text-muted-foreground">{m.label}</p>
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Performance Rates</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-4">
+              <Separator className="my-5" />
+
+              <p className="text-xs text-muted-foreground mb-4 font-medium uppercase tracking-wider">Rates</p>
+              <div className="grid grid-cols-3 gap-y-5">
                 {rates.map((r) => (
-                  <div key={r.label} className="text-center">
-                    <p className="text-2xl font-bold">{r.value}</p>
+                  <div key={r.label}>
+                    <p className="text-xl font-semibold tracking-tight">{r.value}</p>
                     <p className="text-xs text-muted-foreground">{r.label}</p>
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
 
-          {(post.media_type === "REEL" || post.media_type === "VIDEO") &&
-            post.plays != null && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Video Metrics</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center">
-                    <p className="text-2xl font-bold">
-                      {formatNumber(post.plays)}
-                    </p>
+              {(post.media_type === "REEL" || post.media_type === "VIDEO") && post.plays != null && (
+                <>
+                  <Separator className="my-5" />
+                  <p className="text-xs text-muted-foreground mb-4 font-medium uppercase tracking-wider">Video</p>
+                  <div>
+                    <p className="text-xl font-semibold tracking-tight">{formatNumber(post.plays)}</p>
                     <p className="text-xs text-muted-foreground">Plays</p>
                   </div>
-                </CardContent>
-              </Card>
-            )}
+                </>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

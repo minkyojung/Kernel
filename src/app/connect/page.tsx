@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface ConnectionStatus {
@@ -12,6 +11,13 @@ interface ConnectionStatus {
   username?: string;
   expires_at?: string;
 }
+
+const PLATFORMS = [
+  { id: "instagram", label: "Instagram", authUrl: "/api/auth/instagram", available: true },
+  { id: "threads", label: "Threads", authUrl: "/api/auth/threads", available: true },
+  { id: "youtube", label: "YouTube", authUrl: "#", available: false },
+  { id: "tiktok", label: "TikTok", authUrl: "#", available: false },
+];
 
 export default function ConnectPage() {
   const [connections, setConnections] = useState<ConnectionStatus[]>([]);
@@ -39,126 +45,59 @@ export default function ConnectPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20 text-muted-foreground">
-        Loading...
-      </div>
-    );
+    return <div className="flex items-center justify-center py-20 text-muted-foreground">Loading...</div>;
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Connect Platforms</h1>
-        <p className="text-muted-foreground">
-          Connect your social media accounts to start tracking performance.
-        </p>
-      </div>
+    <div className="space-y-4 max-w-2xl">
+      <p className="text-sm text-muted-foreground">Manage your social media connections.</p>
 
       {successPlatform && (
         <Alert>
-          <AlertDescription>
-            {successPlatform} connected successfully!
-          </AlertDescription>
+          <AlertDescription>{successPlatform} connected successfully!</AlertDescription>
         </Alert>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        {/* Instagram */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-base font-medium">Instagram</CardTitle>
-            {connections.find((c) => c.platform === "instagram")?.connected ? (
-              <Badge variant="default">Connected</Badge>
-            ) : (
-              <Badge variant="secondary">Not connected</Badge>
-            )}
-          </CardHeader>
-          <CardContent>
-            {(() => {
-              const ig = connections.find((c) => c.platform === "instagram");
-              if (ig?.connected) {
-                const days = daysUntilExpiry(ig.expires_at!);
-                return (
-                  <div className="space-y-3">
-                    <p className="text-sm font-medium">@{ig.username}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Token expires in {days} days
-                    </p>
-                    {days < 14 && (
-                      <Alert variant="destructive">
-                        <AlertDescription>
-                          Token expiring soon. Reconnect to refresh.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                    <a href="/api/auth/instagram">
-                      <Button variant="outline" size="sm">Reconnect</Button>
-                    </a>
-                  </div>
-                );
-              }
-              return (
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Business or Creator account required.
-                  </p>
-                  <a href="/api/auth/instagram">
-                    <Button>Connect Instagram</Button>
-                  </a>
-                </div>
-              );
-            })()}
-          </CardContent>
-        </Card>
+      <div className="rounded-lg border divide-y divide-border">
+        {PLATFORMS.map((platform) => {
+          const conn = connections.find((c) => c.platform === platform.id);
+          const isConnected = conn?.connected;
+          const days = isConnected && conn?.expires_at ? daysUntilExpiry(conn.expires_at) : null;
 
-        {/* Threads */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-base font-medium">Threads</CardTitle>
-            {connections.find((c) => c.platform === "threads")?.connected ? (
-              <Badge variant="default">Connected</Badge>
-            ) : (
-              <Badge variant="secondary">Not connected</Badge>
-            )}
-          </CardHeader>
-          <CardContent>
-            {(() => {
-              const th = connections.find((c) => c.platform === "threads");
-              if (th?.connected) {
-                const days = daysUntilExpiry(th.expires_at!);
-                return (
-                  <div className="space-y-3">
-                    <p className="text-sm font-medium">@{th.username}</p>
+          return (
+            <div key={platform.id} className="flex items-center justify-between px-4 py-3.5">
+              <div className="flex items-center gap-3">
+                <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-emerald-500" : platform.available ? "bg-muted-foreground/30" : "bg-muted-foreground/10"}`} />
+                <div>
+                  <p className="text-sm font-medium">{platform.label}</p>
+                  {isConnected && (
                     <p className="text-xs text-muted-foreground">
-                      Token expires in {days} days
+                      @{conn?.username} {days != null && `· ${days}d until refresh`}
                     </p>
-                    {days < 14 && (
-                      <Alert variant="destructive">
-                        <AlertDescription>
-                          Token expiring soon. Reconnect to refresh.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                    <a href="/api/auth/threads">
-                      <Button variant="outline" size="sm">Reconnect</Button>
-                    </a>
-                  </div>
-                );
-              }
-              return (
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Threads account required.
-                  </p>
-                  <a href="/api/auth/threads">
-                    <Button>Connect Threads</Button>
-                  </a>
+                  )}
+                  {!isConnected && !platform.available && (
+                    <p className="text-xs text-muted-foreground">Coming soon</p>
+                  )}
                 </div>
-              );
-            })()}
-          </CardContent>
-        </Card>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {isConnected ? (
+                  <>
+                    <Badge variant="secondary" className="text-xs">Connected</Badge>
+                    <a href={platform.authUrl}>
+                      <Button variant="ghost" size="sm" className="text-xs h-7">Reconnect</Button>
+                    </a>
+                  </>
+                ) : platform.available ? (
+                  <a href={platform.authUrl}>
+                    <Button variant="outline" size="sm" className="text-xs h-7">Connect</Button>
+                  </a>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

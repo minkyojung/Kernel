@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -44,51 +43,32 @@ export default function PostsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filtered =
-    filterType === "ALL"
-      ? media
-      : media.filter((m) => m.media_type === filterType);
+  const filtered = filterType === "ALL" ? media : media.filter((m) => m.media_type === filterType);
 
   const sorted = [...filtered].sort((a, b) => {
     switch (sortBy) {
-      case "engagement":
-        return engagementRate(b) - engagementRate(a);
-      case "reach":
-        return (b.reach ?? 0) - (a.reach ?? 0);
-      case "save_rate":
-        return saveRate(b) - saveRate(a);
+      case "engagement": return engagementRate(b) - engagementRate(a);
+      case "reach": return (b.reach ?? 0) - (a.reach ?? 0);
+      case "save_rate": return saveRate(b) - saveRate(a);
       case "latest":
-      default:
-        return (
-          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-        );
+      default: return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
     }
   });
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20 text-muted-foreground">
-        Loading...
-      </div>
-    );
+    return <div className="flex items-center justify-center py-20 text-muted-foreground">Loading...</div>;
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Posts</h1>
-        <p className="text-muted-foreground">
-          All your Instagram posts with performance metrics.
-        </p>
-      </div>
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        {sorted.length} post{sorted.length !== 1 ? "s" : ""}
+      </p>
 
-      <div className="flex gap-3">
-        <Select
-          value={filterType}
-          onValueChange={(v) => setFilterType(v as MediaTypeFilter)}
-        >
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Filter by type" />
+      <div className="flex gap-2">
+        <Select value={filterType} onValueChange={(v) => v && setFilterType(v as MediaTypeFilter)}>
+          <SelectTrigger className="w-[130px] h-8 text-xs">
+            <SelectValue placeholder="All types" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">All Types</SelectItem>
@@ -99,15 +79,12 @@ export default function PostsPage() {
           </SelectContent>
         </Select>
 
-        <Select
-          value={sortBy}
-          onValueChange={(v) => setSortBy(v as SortKey)}
-        >
-          <SelectTrigger className="w-[180px]">
+        <Select value={sortBy} onValueChange={(v) => v && setSortBy(v as SortKey)}>
+          <SelectTrigger className="w-[150px] h-8 text-xs">
             <SelectValue placeholder="Sort by" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="engagement">Engagement Rate</SelectItem>
+            <SelectItem value="engagement">Engagement</SelectItem>
             <SelectItem value="reach">Reach</SelectItem>
             <SelectItem value="save_rate">Save Rate</SelectItem>
             <SelectItem value="latest">Latest</SelectItem>
@@ -115,78 +92,42 @@ export default function PostsPage() {
         </Select>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            {sorted.length} posts
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {sorted.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              No posts found. Sync from the dashboard first.
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead className="max-w-[200px]">Caption</TableHead>
-                  <TableHead className="text-right">Reach</TableHead>
-                  <TableHead className="text-right">Views</TableHead>
-                  <TableHead className="text-right">Likes</TableHead>
-                  <TableHead className="text-right">Saved</TableHead>
-                  <TableHead className="text-right">Shares</TableHead>
-                  <TableHead className="text-right">Eng. Rate</TableHead>
-                  <TableHead className="text-right">Save Rate</TableHead>
+      {sorted.length === 0 ? (
+        <div className="py-16 text-center">
+          <p className="text-sm text-muted-foreground">No posts found. Sync from the dashboard first.</p>
+        </div>
+      ) : (
+        <div className="rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead className="text-right">Reach</TableHead>
+                <TableHead className="text-right">Eng%</TableHead>
+                <TableHead className="text-right">Saves</TableHead>
+                <TableHead className="w-8"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sorted.map((post) => (
+                <TableRow
+                  key={post.id}
+                  className="cursor-pointer"
+                  onClick={() => window.location.href = `/posts/${post.id}`}
+                >
+                  <TableCell className="text-sm">{formatDate(post.timestamp)}</TableCell>
+                  <TableCell><Badge variant="secondary" className="text-xs">{post.media_type}</Badge></TableCell>
+                  <TableCell className="text-right text-sm">{formatNumber(post.reach ?? 0)}</TableCell>
+                  <TableCell className="text-right text-sm font-medium">{formatPercent(engagementRate(post))}</TableCell>
+                  <TableCell className="text-right text-sm">{formatNumber(post.saved ?? 0)}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">&rarr;</TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sorted.map((post) => (
-                  <TableRow key={post.id}>
-                    <TableCell>
-                      <a
-                        href={`/posts/${post.id}`}
-                        className="hover:underline"
-                      >
-                        {formatDate(post.timestamp)}
-                      </a>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{post.media_type}</Badge>
-                    </TableCell>
-                    <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">
-                      {post.caption?.slice(0, 50) || "—"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatNumber(post.reach ?? 0)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatNumber(post.views ?? 0)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatNumber(post.insight_likes ?? post.like_count)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatNumber(post.saved ?? 0)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatNumber(post.shares ?? 0)}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatPercent(engagementRate(post))}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatPercent(saveRate(post))}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   );
 }
