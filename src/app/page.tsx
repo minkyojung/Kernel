@@ -198,8 +198,40 @@ export default function DashboardPage() {
         </CardHeader>
         {analysis && (
           <CardContent>
-            <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap text-sm leading-relaxed">
-              {analysis}
+            <div className="max-h-[500px] overflow-y-auto rounded-md bg-muted/30 p-4">
+              <div className="whitespace-pre-wrap text-sm leading-relaxed [&>*]:mb-0">
+                {analysis.split("\n").map((line, i) => {
+                  if (line.startsWith("## ")) {
+                    return (
+                      <h3 key={i} className="mt-4 mb-2 text-base font-semibold first:mt-0">
+                        {line.replace("## ", "")}
+                      </h3>
+                    );
+                  }
+                  if (line.startsWith("### ")) {
+                    return (
+                      <h4 key={i} className="mt-3 mb-1 text-sm font-semibold">
+                        {line.replace("### ", "")}
+                      </h4>
+                    );
+                  }
+                  if (line.startsWith("- ")) {
+                    return (
+                      <p key={i} className="ml-4 my-0.5 text-muted-foreground">
+                        {line}
+                      </p>
+                    );
+                  }
+                  if (line.trim() === "") {
+                    return <div key={i} className="h-2" />;
+                  }
+                  return (
+                    <p key={i} className="my-0.5 text-muted-foreground">
+                      {line}
+                    </p>
+                  );
+                })}
+              </div>
             </div>
           </CardContent>
         )}

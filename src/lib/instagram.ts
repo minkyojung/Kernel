@@ -1,4 +1,4 @@
-import { getToken, upsertMedia, upsertMediaInsight } from "./db";
+import { getToken, upsertMedia, upsertMediaInsight, deleteRemovedMedia } from "./db";
 
 function getAccessToken(): string {
   const token = getToken("instagram");
@@ -56,6 +56,7 @@ export async function fetchAndStoreMedia(): Promise<number> {
   const data = (await res.json()) as { data: IGMedia[] };
   let count = 0;
 
+  const currentIds: string[] = [];
   for (const item of data.data) {
     upsertMedia({
       id: item.id,
@@ -68,7 +69,14 @@ export async function fetchAndStoreMedia(): Promise<number> {
       like_count: item.like_count || 0,
       comments_count: item.comments_count || 0,
     });
+    currentIds.push(item.id);
     count++;
+  }
+
+  // Remove posts from DB that no longer exist on Instagram
+  const removed = deleteRemovedMedia(currentIds);
+  if (removed > 0) {
+    console.log(`Removed ${removed} deleted posts from DB`);
   }
 
   return count;

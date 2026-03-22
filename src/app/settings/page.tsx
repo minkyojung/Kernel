@@ -156,6 +156,18 @@ export default function SettingsPage() {
         </p>
       </div>
 
+      {!profile.category && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="pt-6">
+            <p className="text-sm font-medium mb-1">Quick Start Guide</p>
+            <p className="text-xs text-muted-foreground">
+              Fill in at least <strong>Category</strong> and <strong>Content Goal</strong> to get AI-powered content strategy.
+              The more you fill in, the more personalized the recommendations.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Category */}
       <Card>
         <CardHeader>
@@ -219,7 +231,7 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent>
           <Input
-            placeholder="e.g., 20-30s Korean women interested in skincare"
+            placeholder="예: 20-30대 한국 여성, 스킨케어에 관심 / 개발자, 생산성에 관심"
             value={profile.target_audience}
             onChange={(e) =>
               setProfile({ ...profile, target_audience: e.target.value })
@@ -333,7 +345,7 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent>
           <Textarea
-            placeholder="e.g., I create tech review content focused on productivity tools and gadgets. My style is minimal and informative."
+            placeholder="예: 생산성 도구와 가젯을 리뷰하는 테크 크리에이터. 미니멀하고 정보 중심의 스타일. / 일상 브이로그와 카페 탐방 콘텐츠를 만듦."
             value={profile.bio}
             onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
             rows={3}

@@ -210,6 +210,19 @@ export function getAllMediaWithInsights(): (MediaRow & Partial<MediaInsightRow>)
   `).all() as (MediaRow & Partial<MediaInsightRow>)[];
 }
 
+export function deleteRemovedMedia(currentIds: string[]): number {
+  const db = getDb();
+  if (currentIds.length === 0) {
+    const result = db.prepare("DELETE FROM media_insights").run();
+    const result2 = db.prepare("DELETE FROM media").run();
+    return result2.changes;
+  }
+  const placeholders = currentIds.map(() => "?").join(",");
+  db.prepare(`DELETE FROM media_insights WHERE media_id NOT IN (${placeholders})`).run(...currentIds);
+  const result = db.prepare(`DELETE FROM media WHERE id NOT IN (${placeholders})`).run(...currentIds);
+  return result.changes;
+}
+
 export function getMediaWithInsight(mediaId: string): (MediaRow & Partial<MediaInsightRow>) | undefined {
   const db = getDb();
   return db.prepare(`
