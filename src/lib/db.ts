@@ -43,6 +43,19 @@ function initSchema(): void {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS profile (
+      id INTEGER PRIMARY KEY CHECK(id = 1),
+      category TEXT NOT NULL DEFAULT '',
+      target_audience TEXT NOT NULL DEFAULT '',
+      content_goal TEXT NOT NULL DEFAULT 'growth',
+      primary_format TEXT NOT NULL DEFAULT 'mixed',
+      posting_frequency TEXT NOT NULL DEFAULT '3_per_week',
+      competitors TEXT NOT NULL DEFAULT '[]',
+      bio TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS media_insights (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       media_id TEXT NOT NULL REFERENCES media(id),
@@ -207,4 +220,48 @@ export function getMediaWithInsight(mediaId: string): (MediaRow & Partial<MediaI
     LEFT JOIN media_insights mi ON m.id = mi.media_id
     WHERE m.id = ?
   `).get(mediaId) as (MediaRow & Partial<MediaInsightRow>) | undefined;
+}
+
+export interface ProfileRow {
+  id: number;
+  category: string;
+  target_audience: string;
+  content_goal: string;
+  primary_format: string;
+  posting_frequency: string;
+  competitors: string; // JSON array
+  bio: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export function getProfile(): ProfileRow | undefined {
+  const db = getDb();
+  return db.prepare("SELECT * FROM profile WHERE id = 1").get() as ProfileRow | undefined;
+}
+
+export function upsertProfile(data: Omit<ProfileRow, "id" | "created_at" | "updated_at">): ProfileRow {
+  const db = getDb();
+  return db.prepare(`
+    INSERT INTO profile (id, category, target_audience, content_goal, primary_format, posting_frequency, competitors, bio, updated_at)
+    VALUES (1, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(id) DO UPDATE SET
+      category = excluded.category,
+      target_audience = excluded.target_audience,
+      content_goal = excluded.content_goal,
+      primary_format = excluded.primary_format,
+      posting_frequency = excluded.posting_frequency,
+      competitors = excluded.competitors,
+      bio = excluded.bio,
+      updated_at = datetime('now')
+    RETURNING *
+  `).get(
+    data.category,
+    data.target_audience,
+    data.content_goal,
+    data.primary_format,
+    data.posting_frequency,
+    data.competitors,
+    data.bio,
+  ) as ProfileRow;
 }

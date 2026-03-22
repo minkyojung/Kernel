@@ -53,6 +53,12 @@ export default function RootLayout({
                 >
                   Connect
                 </a>
+                <a
+                  href="/settings"
+                  className="text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Settings
+                </a>
               </nav>
             </div>
           </header>
