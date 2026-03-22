@@ -35,6 +35,9 @@ export default function DashboardPage() {
   const [period, setPeriod] = useState<Period>("30");
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [analysis, setAnalysis] = useState<string | null>(null);
+  const [analysisType, setAnalysisType] = useState<"strategy" | "performance" | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
 
   const fetchData = () => {
     fetch("/api/insights")
@@ -58,6 +61,26 @@ export default function DashboardPage() {
       // handled
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleAnalyze = async () => {
+    setAnalyzing(true);
+    try {
+      const res = await fetch("/api/analyze", { method: "POST" });
+      const data = await res.json();
+      if (data.error) {
+        setAnalysis(data.error);
+        setAnalysisType(null);
+      } else {
+        setAnalysis(data.analysis);
+        setAnalysisType(data.type);
+      }
+    } catch {
+      setAnalysis("Failed to generate analysis. Please try again.");
+      setAnalysisType(null);
+    } finally {
+      setAnalyzing(false);
     }
   };
 
@@ -146,6 +169,41 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* AI Analysis */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-base">
+              {analysisType === "strategy"
+                ? "AI Content Strategy"
+                : analysisType === "performance"
+                  ? "AI Performance Analysis"
+                  : "AI Insights"}
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              {allMedia.length === 0
+                ? "Get personalized content strategy based on your profile"
+                : "Get AI-powered analysis of your content performance"}
+            </p>
+          </div>
+          <Button
+            onClick={handleAnalyze}
+            disabled={analyzing}
+            variant="outline"
+            size="sm"
+          >
+            {analyzing ? "Analyzing..." : "Analyze"}
+          </Button>
+        </CardHeader>
+        {analysis && (
+          <CardContent>
+            <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap text-sm leading-relaxed">
+              {analysis}
+            </div>
+          </CardContent>
+        )}
+      </Card>
 
       {/* Top Posts Table */}
       <Card>
