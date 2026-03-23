@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { syncAllInsights } from "@/lib/instagram";
 import { getAllMediaWithInsights } from "@/lib/db";
+import { refreshTokensIfNeeded } from "@/lib/token-refresh";
 
 // GET: return all media with insights from DB
 export async function GET() {
@@ -19,6 +20,9 @@ export async function GET() {
 // POST: sync media & insights from Instagram API, then return results
 export async function POST() {
   try {
+    // Auto-refresh tokens if expiring within 30 days
+    await refreshTokensIfNeeded();
+
     const count = await syncAllInsights();
     const media = getAllMediaWithInsights();
     return NextResponse.json({

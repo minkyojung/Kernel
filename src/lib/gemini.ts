@@ -156,3 +156,45 @@ ${buildMediaContext(media)}
 
   return callGemini(prompt);
 }
+
+export async function generateDrafts(
+  profile: ProfileRow,
+  sourceType: "news" | "github",
+  sourceContent: string,
+): Promise<string> {
+  const prompt = `당신은 소셜 미디어 콘텐츠 전문 작가입니다.
+
+${buildProfileContext(profile)}
+
+## 소스 (${sourceType === "news" ? "Tech News" : "GitHub Activity"})
+${sourceContent}
+
+이 소스를 기반으로 3가지 소셜 미디어 포스트 초안을 작성하세요.
+
+**반드시 아래 형식을 지켜주세요:**
+
+## Draft 1: Instagram Carousel
+- **Hook (첫 슬라이드):** [스크롤을 멈추게 하는 강렬한 한 줄]
+- **Slide 2:** [핵심 정보 1]
+- **Slide 3:** [핵심 정보 2]
+- **Slide 4:** [핵심 정보 3]
+- **Slide 5 (CTA):** [행동 유도]
+- **Caption:** [해시태그 포함 캡션]
+
+## Draft 2: Instagram Reel Script
+- **Hook (0-3초):** [시선을 잡는 첫 마디]
+- **Body (3-30초):** [핵심 내용, 대화체]
+- **CTA (마지막):** [팔로우/저장 유도]
+- **Caption:** [해시태그 포함]
+
+## Draft 3: Threads Post
+[500자 이내. 대화체. 정보 + 내 관점. 해시태그 2-3개]
+
+규칙:
+1. 크리에이터의 스타일과 톤에 맞게 작성
+2. 타겟 오디언스가 관심 가질 만한 각도로 접근
+3. 한국어로 작성
+4. 뻔한 내용 대신 독특한 관점 제시`;
+
+  return callGemini(prompt);
+}

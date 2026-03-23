@@ -22,6 +22,7 @@ import {
   LifeBuoyIcon,
   SendIcon,
   SparklesIcon,
+  PenLineIcon,
 } from "lucide-react"
 
 const data = {
@@ -36,6 +37,11 @@ const data = {
       url: "/",
       icon: <LayoutDashboardIcon />,
       isActive: true,
+    },
+    {
+      title: "Compose",
+      url: "/compose",
+      icon: <PenLineIcon />,
     },
     {
       title: "Posts",
