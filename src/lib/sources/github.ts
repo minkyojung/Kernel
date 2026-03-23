@@ -4,6 +4,7 @@ interface GitHubCommit {
     message: string;
     author: { name: string; date: string };
   };
+  author?: { login?: string };
   html_url: string;
 }
 
@@ -23,7 +24,6 @@ export async function fetchTodayActivity(): Promise<{
 
   const headers = { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" };
 
-  // Get repos pushed today (or recently)
   const today = new Date().toISOString().slice(0, 10);
   const reposRes = await fetch(
     `https://api.github.com/user/repos?per_page=30&sort=pushed`,
@@ -37,7 +37,6 @@ export async function fetchTodayActivity(): Promise<{
   const repoActivities: RepoActivity[] = [];
 
   for (const repo of todayRepos.slice(0, 5)) {
-    // Fetch all branches to find commits across feature branches
     const branchesRes = await fetch(
       `https://api.github.com/repos/${repo.full_name}/branches?per_page=20`,
       { headers },
@@ -47,11 +46,12 @@ export async function fetchTodayActivity(): Promise<{
       : [{ name: "main" }];
 
     const seenShas = new Set<string>();
-    const allUserCommits: { message: string; sha: string; date: string; url: string }[] = [];
+    const allCommits: { message: string; sha: string; date: string; url: string }[] = [];
 
     for (const branch of branches) {
+      // Use author param to filter server-side by GitHub username
       const commitsRes = await fetch(
-        `https://api.github.com/repos/${repo.full_name}/commits?sha=${encodeURIComponent(branch.name)}&since=${today}T00:00:00Z&per_page=20`,
+        `https://api.github.com/repos/${repo.full_name}/commits?sha=${encodeURIComponent(branch.name)}&since=${today}T00:00:00Z&author=${username}&per_page=20`,
         { headers },
       );
       if (!commitsRes.ok) continue;
@@ -59,9 +59,8 @@ export async function fetchTodayActivity(): Promise<{
       const commits = (await commitsRes.json()) as GitHubCommit[];
       for (const c of commits) {
         if (seenShas.has(c.sha)) continue;
-        if (!c.commit.author.name?.toLowerCase().includes(username.toLowerCase())) continue;
         seenShas.add(c.sha);
-        allUserCommits.push({
+        allCommits.push({
           message: c.commit.message.split("\n")[0],
           sha: c.sha.slice(0, 7),
           date: c.commit.author.date,
@@ -70,11 +69,8 @@ export async function fetchTodayActivity(): Promise<{
       }
     }
 
-    if (allUserCommits.length > 0) {
-      repoActivities.push({
-        repo: repo.full_name,
-        commits: allUserCommits,
-      });
+    if (allCommits.length > 0) {
+      repoActivities.push({ repo: repo.full_name, commits: allCommits });
     }
   }
 
