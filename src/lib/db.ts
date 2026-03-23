@@ -72,6 +72,15 @@ function initSchema(): void {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS content_patterns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      pattern_type TEXT NOT NULL CHECK(pattern_type IN ('topic', 'format', 'tone', 'timing', 'hook', 'general')),
+      pattern TEXT NOT NULL,
+      evidence TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS media_insights (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       media_id TEXT NOT NULL REFERENCES media(id),
@@ -389,4 +398,34 @@ export function getDueScheduledDrafts(): DraftRow[] {
 export function deleteDraft(id: string): void {
   const db = getDb();
   db.prepare("DELETE FROM drafts WHERE id = ?").run(id);
+}
+
+// --- Content Patterns ---
+
+export interface ContentPatternRow {
+  id: number;
+  pattern_type: string;
+  pattern: string;
+  evidence: string; // JSON array of post references
+  created_at: string;
+  updated_at: string;
+}
+
+export function replaceAllPatterns(patterns: { pattern_type: string; pattern: string; evidence: string }[]): void {
+  const db = getDb();
+  const trx = db.transaction(() => {
+    db.prepare("DELETE FROM content_patterns").run();
+    const stmt = db.prepare(
+      "INSERT INTO content_patterns (pattern_type, pattern, evidence) VALUES (?, ?, ?)",
+    );
+    for (const p of patterns) {
+      stmt.run(p.pattern_type, p.pattern, p.evidence);
+    }
+  });
+  trx();
+}
+
+export function getAllPatterns(): ContentPatternRow[] {
+  const db = getDb();
+  return db.prepare("SELECT * FROM content_patterns ORDER BY pattern_type, id").all() as ContentPatternRow[];
 }

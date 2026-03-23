@@ -1,4 +1,4 @@
-import { type ProfileRow } from "./db";
+import { type ProfileRow, type ContentPatternRow } from "./db";
 import { type MediaWithInsight, engagementRate, saveRate } from "./metrics";
 
 const GEMINI_URL =
@@ -157,15 +157,106 @@ ${buildMediaContext(media)}
   return callGemini(prompt);
 }
 
+export async function extractContentPatterns(
+  profile: ProfileRow,
+  media: MediaWithInsight[],
+): Promise<Array<{ pattern_type: string; pattern: string; evidence: string }>> {
+  if (media.length === 0) return [];
+
+  const prompt = `You are a social media performance analyst.
+
+${buildProfileContext(profile)}
+
+${buildMediaContext(media)}
+
+Analyze the performance data above and extract actionable content patterns. For each pattern, identify specific evidence from the posts.
+
+Return ONLY a valid JSON array with no markdown formatting. Each object must have:
+- "pattern_type": one of "topic", "format", "tone", "timing", "hook", "general"
+- "pattern": a concise, actionable insight in English (1-2 sentences)
+- "evidence": a brief reference to which posts support this (e.g. "Posts #1, #5 with 8%+ ER")
+
+Rules:
+- Extract 5-10 patterns maximum
+- Only include patterns supported by actual data — do not speculate
+- Focus on what THIS creator should replicate or avoid
+- If there are fewer than 3 posts, extract what you can but note limited data
+
+Example output format:
+[{"pattern_type":"topic","pattern":"Posts about AI tools get 2x the engagement rate vs general tech posts","evidence":"Posts #2, #7 averaged 6.2% ER vs 3.1% overall"}]`;
+
+  const raw = await callGemini(prompt);
+
+  // Strip markdown code fences if present
+  const cleaned = raw.replace(/^```(?:json)?\s*/m, "").replace(/\s*```$/m, "").trim();
+
+  try {
+    const parsed = JSON.parse(cleaned) as Array<{ pattern_type: string; pattern: string; evidence: string }>;
+    const validTypes = new Set(["topic", "format", "tone", "timing", "hook", "general"]);
+    return parsed
+      .filter((p) => validTypes.has(p.pattern_type) && p.pattern && p.evidence)
+      .map((p) => ({
+        pattern_type: p.pattern_type,
+        pattern: p.pattern,
+        evidence: p.evidence,
+      }));
+  } catch {
+    console.error("Failed to parse content patterns JSON:", cleaned.slice(0, 200));
+    return [];
+  }
+}
+
+function buildPerformanceContext(
+  patterns: ContentPatternRow[],
+  topPosts: MediaWithInsight[],
+): string {
+  if (patterns.length === 0 && topPosts.length === 0) return "";
+
+  const sections: string[] = [];
+  sections.push("## Performance Insights (from past content)");
+
+  // Group patterns by type
+  if (patterns.length > 0) {
+    sections.push("**Learned patterns — apply these as guidelines, not rigid rules:**");
+    for (const p of patterns) {
+      sections.push(`- [${p.pattern_type}] ${p.pattern}`);
+    }
+  }
+
+  // Top performing posts as style reference
+  if (topPosts.length > 0) {
+    sections.push("");
+    sections.push("**Top performing posts — match this tone and structure:**");
+    for (const m of topPosts) {
+      const er = engagementRate(m).toFixed(1);
+      const caption = (m.caption || "").slice(0, 200);
+      sections.push(`- [${m.media_type}] ER: ${er}% | Reach: ${m.reach ?? 0} | "${caption}"`);
+    }
+  }
+
+  sections.push("");
+  sections.push("IMPORTANT: Use these insights to guide tone, structure, and angle. Do NOT copy past captions. The new content must be about the provided source material.");
+
+  return sections.join("\n");
+}
+
 export async function generateDrafts(
   profile: ProfileRow,
   sourceType: "news" | "github",
   sourceContent: string,
+  options?: {
+    patterns?: ContentPatternRow[];
+    topPosts?: MediaWithInsight[];
+  },
 ): Promise<string> {
+  const performanceCtx = options
+    ? buildPerformanceContext(options.patterns || [], options.topPosts || [])
+    : "";
+
   const prompt = `당신은 소셜 미디어 콘텐츠 전문 작가입니다.
 
 ${buildProfileContext(profile)}
-
+${performanceCtx ? "\n" + performanceCtx + "\n" : ""}
 ## 소스 (${sourceType === "news" ? "Tech News" : "GitHub Activity"})
 ${sourceContent}
 
@@ -194,7 +285,8 @@ ${sourceContent}
 1. 크리에이터의 스타일과 톤에 맞게 작성
 2. 타겟 오디언스가 관심 가질 만한 각도로 접근
 3. 한국어로 작성
-4. 뻔한 내용 대신 독특한 관점 제시`;
+4. 뻔한 내용 대신 독특한 관점 제시
+${performanceCtx ? "5. Performance Insights 섹션의 패턴을 반영해서 톤, 구조, 접근 각도를 조정하세요" : ""}`;
 
   return callGemini(prompt);
 }
