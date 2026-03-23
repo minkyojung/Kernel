@@ -37,26 +37,43 @@ export async function fetchTodayActivity(): Promise<{
   const repoActivities: RepoActivity[] = [];
 
   for (const repo of todayRepos.slice(0, 5)) {
-    const commitsRes = await fetch(
-      `https://api.github.com/repos/${repo.full_name}/commits?since=${today}T00:00:00Z&per_page=20`,
+    // Fetch all branches to find commits across feature branches
+    const branchesRes = await fetch(
+      `https://api.github.com/repos/${repo.full_name}/branches?per_page=20`,
       { headers },
     );
-    if (!commitsRes.ok) continue;
+    const branches = branchesRes.ok
+      ? ((await branchesRes.json()) as { name: string }[])
+      : [{ name: "main" }];
 
-    const commits = (await commitsRes.json()) as GitHubCommit[];
-    const userCommits = commits.filter(
-      (c) => c.commit.author.name?.toLowerCase().includes(username.toLowerCase()),
-    );
+    const seenShas = new Set<string>();
+    const allUserCommits: { message: string; sha: string; date: string; url: string }[] = [];
 
-    if (userCommits.length > 0) {
-      repoActivities.push({
-        repo: repo.full_name,
-        commits: userCommits.map((c) => ({
+    for (const branch of branches) {
+      const commitsRes = await fetch(
+        `https://api.github.com/repos/${repo.full_name}/commits?sha=${encodeURIComponent(branch.name)}&since=${today}T00:00:00Z&per_page=20`,
+        { headers },
+      );
+      if (!commitsRes.ok) continue;
+
+      const commits = (await commitsRes.json()) as GitHubCommit[];
+      for (const c of commits) {
+        if (seenShas.has(c.sha)) continue;
+        if (!c.commit.author.name?.toLowerCase().includes(username.toLowerCase())) continue;
+        seenShas.add(c.sha);
+        allUserCommits.push({
           message: c.commit.message.split("\n")[0],
           sha: c.sha.slice(0, 7),
           date: c.commit.author.date,
           url: c.html_url,
-        })),
+        });
+      }
+    }
+
+    if (allUserCommits.length > 0) {
+      repoActivities.push({
+        repo: repo.full_name,
+        commits: allUserCommits,
       });
     }
   }
