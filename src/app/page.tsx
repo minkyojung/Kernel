@@ -21,7 +21,7 @@ import {
   formatPercent,
   formatDate,
 } from "@/lib/metrics";
-import { TrendingUp, TrendingDown, Minus, RefreshCw, Sparkles, CheckCircle2, Circle } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, RefreshCw, Sparkles, CheckCircle2, Circle, Loader2, Zap, ArrowRight } from "lucide-react";
 
 type Period = "7" | "30" | "90";
 
@@ -45,6 +45,10 @@ export default function DashboardPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [hasProfile, setHasProfile] = useState(false);
   const [hasConnections, setHasConnections] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [draftCount, setDraftCount] = useState(0);
+  const [monitoring, setMonitoring] = useState(false);
+  const [monitorResult, setMonitorResult] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/insights").then(r => r.json()).then(d => setAllMedia(d.data || [])).catch(() => {}).finally(() => setLoading(false));
@@ -52,6 +56,11 @@ export default function DashboardPage() {
     fetch("/api/auth/status").then(r => r.json()).then(d => {
       const conns = d.connections || [];
       setHasConnections(conns.some((c: { connected: boolean }) => c.connected));
+    }).catch(() => {});
+    fetch("/api/drafts").then(r => r.json()).then(d => {
+      const drafts = d.drafts || [];
+      setPendingCount(drafts.filter((x: { status: string }) => x.status === "pending_review").length);
+      setDraftCount(drafts.filter((x: { status: string }) => x.status === "draft" || x.status === "scheduled").length);
     }).catch(() => {});
   }, []);
 
@@ -62,6 +71,32 @@ export default function DashboardPage() {
       const data = await res.json();
       setAllMedia(data.data || []);
     } catch {} finally { setSyncing(false); }
+  };
+
+  const handleMonitor = async () => {
+    setMonitoring(true);
+    setMonitorResult(null);
+    try {
+      const res = await fetch("/api/cron/monitor", { method: "POST" });
+      const data = await res.json();
+      if (data.error) {
+        setMonitorResult(data.error);
+      } else {
+        const parts: string[] = [];
+        if (data.newsCollected > 0) parts.push(`${data.newsCollected} news`);
+        if (data.githubCollected > 0) parts.push(`${data.githubCollected} repos`);
+        if (data.draftsGenerated > 0) parts.push(`${data.draftsGenerated} drafts generated`);
+        setMonitorResult(parts.length > 0 ? parts.join(", ") : "No new sources found");
+        // Refresh pending count
+        const dRes = await fetch("/api/drafts");
+        const dData = await dRes.json();
+        const drafts = dData.drafts || [];
+        setPendingCount(drafts.filter((x: { status: string }) => x.status === "pending_review").length);
+        setDraftCount(drafts.filter((x: { status: string }) => x.status === "draft" || x.status === "scheduled").length);
+      }
+    } catch {
+      setMonitorResult("Monitor failed");
+    } finally { setMonitoring(false); }
   };
 
   const handleAnalyze = async () => {
@@ -88,8 +123,8 @@ export default function DashboardPage() {
     const steps = [
       { label: "Connect Instagram", done: hasConnections, href: "/connect" },
       { label: "Set up profile", done: hasProfile, href: "/settings" },
-      { label: "Post your first content", done: false },
-      { label: "Get AI analysis", done: false },
+      { label: "Run Monitor to find content ideas", done: false },
+      { label: "Review & publish your first post", done: false },
     ];
 
     return (
@@ -102,7 +137,11 @@ export default function DashboardPage() {
         <div className="flex gap-3 mb-8">
           {!hasProfile && <a href="/settings"><Button size="sm">Set up Profile</Button></a>}
           {!hasConnections && <a href="/connect"><Button size="sm" variant="outline">Connect Account</Button></a>}
-          {hasProfile && hasConnections && <Button size="sm" onClick={handleSync} disabled={syncing}>{syncing ? "Syncing..." : "Sync Now"}</Button>}
+          {hasProfile && hasConnections && (
+            <Button size="sm" onClick={handleMonitor} disabled={monitoring}>
+              {monitoring ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Scanning...</> : <><Zap className="w-3.5 h-3.5 mr-1.5" />Run Monitor</>}
+            </Button>
+          )}
         </div>
         <Card className="w-full text-left">
           <CardHeader><CardTitle className="text-sm">Getting Started</CardTitle></CardHeader>
@@ -129,13 +168,45 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Action Required */}
+      {(pendingCount > 0 || draftCount > 0) && (
+        <a href="/compose" className="block">
+          <Card className="border-amber-200 bg-amber-50/50 hover:bg-amber-50 transition-colors dark:border-amber-900 dark:bg-amber-950/20 dark:hover:bg-amber-950/30">
+            <CardContent className="flex items-center justify-between py-3 px-4">
+              <div className="flex items-center gap-3">
+                <Sparkles className="w-4 h-4 text-amber-600" />
+                <span className="text-sm">
+                  {pendingCount > 0
+                    ? <><strong>{pendingCount} draft{pendingCount > 1 ? "s" : ""}</strong> waiting for your review</>
+                    : <><strong>{draftCount}</strong> draft{draftCount > 1 ? "s" : ""} ready in queue</>
+                  }
+                </span>
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground" />
+            </CardContent>
+          </Card>
+        </a>
+      )}
+
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">Content performance overview</p>
-        <Button onClick={handleSync} disabled={syncing} variant="outline" size="sm">
-          <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${syncing ? "animate-spin" : ""}`} />
-          {syncing ? "Syncing" : "Sync"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={handleMonitor} disabled={monitoring} variant="outline" size="sm">
+            {monitoring
+              ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Scanning...</>
+              : <><Zap className="w-3.5 h-3.5 mr-1.5" />Run Monitor</>
+            }
+          </Button>
+          <Button onClick={handleSync} disabled={syncing} variant="outline" size="sm">
+            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Syncing" : "Sync"}
+          </Button>
+        </div>
       </div>
+
+      {monitorResult && (
+        <p className="text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">{monitorResult}</p>
+      )}
 
       {/* KPI Cards */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
