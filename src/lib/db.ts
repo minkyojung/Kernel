@@ -56,6 +56,22 @@ function initSchema(): void {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS drafts (
+      id TEXT PRIMARY KEY,
+      source_type TEXT NOT NULL DEFAULT 'manual',
+      platform TEXT NOT NULL DEFAULT 'threads',
+      format TEXT NOT NULL DEFAULT 'thread',
+      title TEXT NOT NULL DEFAULT '',
+      content TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'draft',
+      scheduled_at TEXT,
+      published_at TEXT,
+      published_id TEXT,
+      error TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS media_insights (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       media_id TEXT NOT NULL REFERENCES media(id),
@@ -277,4 +293,100 @@ export function upsertProfile(data: Omit<ProfileRow, "id" | "created_at" | "upda
     data.competitors,
     data.bio,
   ) as ProfileRow;
+}
+
+// --- Drafts ---
+
+export interface DraftRow {
+  id: string;
+  source_type: string;
+  platform: string;
+  format: string;
+  title: string;
+  content: string;
+  status: string;
+  scheduled_at: string | null;
+  published_at: string | null;
+  published_id: string | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export function createDraft(draft: {
+  id: string;
+  source_type: string;
+  platform: string;
+  format: string;
+  title: string;
+  content: string;
+  scheduled_at?: string;
+}): DraftRow {
+  const db = getDb();
+  return db.prepare(`
+    INSERT INTO drafts (id, source_type, platform, format, title, content, status, scheduled_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    RETURNING *
+  `).get(
+    draft.id,
+    draft.source_type,
+    draft.platform,
+    draft.format,
+    draft.title,
+    draft.content,
+    draft.scheduled_at ? "scheduled" : "draft",
+    draft.scheduled_at || null,
+  ) as DraftRow;
+}
+
+export function getAllDrafts(): DraftRow[] {
+  const db = getDb();
+  return db.prepare("SELECT * FROM drafts ORDER BY created_at DESC").all() as DraftRow[];
+}
+
+export function getDraft(id: string): DraftRow | undefined {
+  const db = getDb();
+  return db.prepare("SELECT * FROM drafts WHERE id = ?").get(id) as DraftRow | undefined;
+}
+
+export function updateDraftStatus(
+  id: string,
+  status: string,
+  extra?: { published_id?: string; published_at?: string; error?: string },
+): void {
+  const db = getDb();
+  db.prepare(`
+    UPDATE drafts SET status = ?, published_id = ?, published_at = ?, error = ?, updated_at = datetime('now')
+    WHERE id = ?
+  `).run(status, extra?.published_id || null, extra?.published_at || null, extra?.error || null, id);
+}
+
+export function updateDraftContent(id: string, content: string, title?: string): void {
+  const db = getDb();
+  if (title !== undefined) {
+    db.prepare("UPDATE drafts SET content = ?, title = ?, updated_at = datetime('now') WHERE id = ?").run(content, title, id);
+  } else {
+    db.prepare("UPDATE drafts SET content = ?, updated_at = datetime('now') WHERE id = ?").run(content, id);
+  }
+}
+
+export function updateDraftSchedule(id: string, scheduled_at: string | null): void {
+  const db = getDb();
+  db.prepare(`
+    UPDATE drafts SET scheduled_at = ?, status = ?, updated_at = datetime('now') WHERE id = ?
+  `).run(scheduled_at, scheduled_at ? "scheduled" : "draft", id);
+}
+
+export function getDueScheduledDrafts(): DraftRow[] {
+  const db = getDb();
+  return db.prepare(`
+    SELECT * FROM drafts
+    WHERE status = 'scheduled' AND scheduled_at <= datetime('now')
+    ORDER BY scheduled_at ASC
+  `).all() as DraftRow[];
+}
+
+export function deleteDraft(id: string): void {
+  const db = getDb();
+  db.prepare("DELETE FROM drafts WHERE id = ?").run(id);
 }
