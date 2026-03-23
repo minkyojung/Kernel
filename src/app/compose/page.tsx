@@ -15,10 +15,11 @@ import {
 } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
 import {
   Newspaper, Github, Loader2, Check, ChevronDown, ChevronUp,
   Send, Clock, Copy, Trash2, Pencil, CalendarIcon, X,
-  ThumbsUp, ThumbsDown, Sparkles,
+  ThumbsUp, ThumbsDown, Sparkles, RefreshCw, Heart, MessageCircle, Repeat2, Share,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -32,8 +33,8 @@ interface GitHubRepo {
 }
 interface SavedDraft {
   id: string; platform: string; format: string; title: string;
-  content: string; status: string; scheduled_at: string | null;
-  published_at: string | null; created_at: string;
+  content: string; status: string; source_type: string;
+  scheduled_at: string | null; published_at: string | null; created_at: string;
 }
 
 type SourceType = "news" | "github" | null;
@@ -318,6 +319,8 @@ function QueueTab({ drafts, onUpdate }: { drafts: SavedDraft[]; onUpdate: () => 
   const [publishing, setPublishing] = useState<string | null>(null);
   const [editingDraft, setEditingDraft] = useState<SavedDraft | null>(null);
   const [editContent, setEditContent] = useState("");
+  const [regenInstruction, setRegenInstruction] = useState("");
+  const [regenerating, setRegenerating] = useState(false);
   const [schedulingId, setSchedulingId] = useState<string | null>(null);
   const [scheduleDate, setScheduleDate] = useState<Date | undefined>();
   const [scheduleHour, setScheduleHour] = useState("09");
@@ -404,9 +407,31 @@ function QueueTab({ drafts, onUpdate }: { drafts: SavedDraft[]; onUpdate: () => 
     onUpdate();
   };
 
+  const regenerateDraft = async () => {
+    if (!editingDraft) return;
+    setRegenerating(true);
+    try {
+      const res = await fetch(`/api/drafts/${editingDraft.id}/regenerate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instruction: regenInstruction || undefined }),
+      });
+      const data = await res.json();
+      if (data.draft) {
+        setEditContent(data.draft.content);
+        setEditingDraft({ ...editingDraft, content: data.draft.content, title: data.draft.title });
+        toast.success("Regenerated");
+      } else {
+        toast.error(data.error || "Regenerate failed");
+      }
+    } catch { toast.error("Regenerate failed"); }
+    finally { setRegenerating(false); setRegenInstruction(""); }
+  };
+
   const openEdit = (draft: SavedDraft) => {
     setEditingDraft(draft);
     setEditContent(draft.content);
+    setRegenInstruction("");
   };
 
   const DraftCard = ({ draft, actions }: { draft: SavedDraft; actions: React.ReactNode }) => (
@@ -567,18 +592,146 @@ function QueueTab({ drafts, onUpdate }: { drafts: SavedDraft[]; onUpdate: () => 
         </div>
       )}
 
-      {/* Edit Dialog */}
+      {/* Edit Dialog — Threads-style preview */}
       <Dialog open={!!editingDraft} onOpenChange={open => { if (!open) setEditingDraft(null); }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Edit Draft</DialogTitle>
-          </DialogHeader>
-          <Textarea value={editContent} onChange={e => setEditContent(e.target.value)}
-            rows={10} className="text-sm" />
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setEditingDraft(null)}>Cancel</Button>
-            <Button onClick={saveEdit}>Save</Button>
-          </div>
+        <DialogContent className="sm:max-w-2xl p-0 gap-0 overflow-hidden">
+          {editingDraft && (() => {
+            const charCount = editContent.length;
+            const maxChars = editingDraft.platform === "threads" ? 500 : 2200;
+            const recommendedMax = editingDraft.platform === "threads" ? 300 : maxChars;
+            const isOver = charCount > maxChars;
+            const isOverRecommended = charCount > recommendedMax;
+            const sourceLabel = editingDraft.source_type === "news" ? "Tech News"
+              : editingDraft.source_type === "github" ? "GitHub Activity" : "Manual";
+            const SourceIcon = editingDraft.source_type === "news" ? Newspaper : Github;
+
+            return (
+              <>
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 pt-5 pb-3">
+                  <DialogHeader className="p-0 space-y-0">
+                    <DialogTitle className="text-sm font-medium">{editingDraft.title}</DialogTitle>
+                  </DialogHeader>
+                </div>
+
+                {/* Threads Post Preview */}
+                {editingDraft.platform === "threads" && (
+                  <div className="mx-5 rounded-xl bg-[#181818] p-4">
+                    <div className="flex gap-3">
+                      {/* Avatar */}
+                      <div className="shrink-0">
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-zinc-600 to-zinc-800 flex items-center justify-center">
+                          <span className="text-xs font-bold text-white">K</span>
+                        </div>
+                      </div>
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-semibold text-[#F3F5F7]">trykernel</span>
+                          <span className="text-xs text-[#777]">now</span>
+                        </div>
+                        <p className="text-[15px] leading-[20px] text-[#F3F5F7] mt-1 whitespace-pre-wrap break-words">
+                          {editContent || "Your post will appear here..."}
+                        </p>
+                        {/* Interaction icons */}
+                        <div className="flex items-center gap-4 mt-3">
+                          <Heart className="w-[18px] h-[18px] text-[#777]" />
+                          <MessageCircle className="w-[18px] h-[18px] text-[#777]" />
+                          <Repeat2 className="w-[18px] h-[18px] text-[#777]" />
+                          <Share className="w-[18px] h-[18px] text-[#777]" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="px-5 py-4 space-y-4">
+                  {/* Source info */}
+                  <div className="flex items-center gap-2">
+                    <SourceIcon className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">{sourceLabel}</span>
+                    <span className="text-xs text-muted-foreground">·</span>
+                    <Badge variant="secondary" className="text-[10px] capitalize">{editingDraft.platform}</Badge>
+                  </div>
+
+                  {/* Editable content */}
+                  <div className="space-y-2">
+                    <Textarea
+                      value={editContent}
+                      onChange={e => setEditContent(e.target.value)}
+                      rows={5}
+                      className="text-sm resize-none"
+                      placeholder="Write your post..."
+                    />
+                    <div className="flex items-center justify-between">
+                      <span className={`text-xs ${isOver ? "text-red-500 font-medium" : isOverRecommended ? "text-amber-500" : "text-muted-foreground"}`}>
+                        {charCount}/{maxChars}
+                        {editingDraft.platform === "threads" && charCount <= recommendedMax && (
+                          <span className="text-emerald-500 ml-1.5">Good length</span>
+                        )}
+                        {editingDraft.platform === "threads" && isOverRecommended && !isOver && (
+                          <span className="text-amber-500 ml-1.5">Over {recommendedMax} recommended</span>
+                        )}
+                      </span>
+                      <Button variant="ghost" size="sm" className="h-7 text-xs"
+                        onClick={() => { navigator.clipboard.writeText(editContent); toast.success("Copied"); }}>
+                        <Copy className="w-3 h-3 mr-1" /> Copy
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Regenerate */}
+                  <Separator />
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <Input
+                        value={regenInstruction}
+                        onChange={e => setRegenInstruction(e.target.value)}
+                        placeholder="e.g. &quot;Make it shorter&quot; or &quot;More controversial&quot;"
+                        className="text-sm h-9"
+                        onKeyDown={e => { if (e.key === "Enter" && !regenerating) regenerateDraft(); }}
+                      />
+                      <Button variant="outline" size="sm" className="shrink-0 h-9"
+                        onClick={regenerateDraft} disabled={regenerating}>
+                        {regenerating
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          : <><RefreshCw className="w-3.5 h-3.5 mr-1.5" />Regenerate</>
+                        }
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600 hover:bg-red-50 h-8"
+                      onClick={() => { removeDraft(editingDraft.id); setEditingDraft(null); }}>
+                      <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
+                    </Button>
+                    <div className="flex gap-2">
+                      {editingDraft.status === "pending_review" && (
+                        <Button variant="outline" size="sm" className="h-8"
+                          onClick={() => { approveDraft(editingDraft.id); setEditingDraft(null); }}>
+                          <ThumbsUp className="w-3.5 h-3.5 mr-1" /> Approve
+                        </Button>
+                      )}
+                      {editingDraft.platform === "threads" && editingDraft.status !== "published" && (
+                        <Button variant="outline" size="sm" className="h-8"
+                          onClick={() => { publishDraft(editingDraft.id); setEditingDraft(null); }}
+                          disabled={isOver || publishing === editingDraft.id}>
+                          <Send className="w-3.5 h-3.5 mr-1" /> Publish
+                        </Button>
+                      )}
+                      <Button size="sm" className="h-8" onClick={saveEdit}
+                        disabled={editContent === editingDraft.content}>
+                        Save
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>
