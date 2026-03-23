@@ -10,7 +10,8 @@ import {
   createDraft,
   cleanOldSources,
 } from "@/lib/db";
-import { scoreRelevance, generateDraftFromSource } from "@/lib/gemini";
+import { scoreRelevance } from "@/lib/gemini";
+import { generateThreadsPost } from "@/lib/openai";
 import { rankByER, type MediaWithInsight } from "@/lib/metrics";
 import { getAllMediaWithInsights } from "@/lib/db";
 import { fetchTopTechNews } from "@/lib/sources/news";
@@ -109,7 +110,7 @@ export async function POST() {
 
     for (const source of relevantSources) {
       try {
-        const generated = await generateDraftFromSource(
+        const generated = await generateThreadsPost(
           profile,
           { source_type: source.source_type, title: source.title, raw_data: source.raw_data },
           { patterns, topPosts },
@@ -118,8 +119,8 @@ export async function POST() {
         createDraft({
           id: randomUUID(),
           source_type: source.source_type,
-          platform: generated.platform,
-          format: generated.format,
+          platform: "threads",
+          format: "post",
           title: generated.title,
           content: generated.content,
           status: "pending_review",

@@ -118,47 +118,15 @@ export default function DashboardPage() {
     return <div className="flex items-center justify-center py-20 text-muted-foreground">Loading...</div>;
   }
 
-  // Empty state: no posts
-  if (allMedia.length === 0) {
-    const steps = [
-      { label: "Connect Instagram", done: hasConnections, href: "/connect" },
-      { label: "Set up profile", done: hasProfile, href: "/settings" },
-      { label: "Run Monitor to find content ideas", done: false },
-      { label: "Review & publish your first post", done: false },
-    ];
+  const hasMedia = allMedia.length > 0;
 
-    return (
-      <div className="flex flex-col items-center justify-center py-16 max-w-md mx-auto text-center">
-        <Sparkles className="w-10 h-10 text-muted-foreground mb-4" />
-        <h2 className="text-xl font-semibold mb-2">Welcome to Kernel</h2>
-        <p className="text-sm text-muted-foreground mb-6">
-          Set up your profile and post your first content to unlock AI-powered analytics.
-        </p>
-        <div className="flex gap-3 mb-8">
-          {!hasProfile && <a href="/settings"><Button size="sm">Set up Profile</Button></a>}
-          {!hasConnections && <a href="/connect"><Button size="sm" variant="outline">Connect Account</Button></a>}
-          {hasProfile && hasConnections && (
-            <Button size="sm" onClick={handleMonitor} disabled={monitoring}>
-              {monitoring ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Scanning...</> : <><Zap className="w-3.5 h-3.5 mr-1.5" />Run Monitor</>}
-            </Button>
-          )}
-        </div>
-        <Card className="w-full text-left">
-          <CardHeader><CardTitle className="text-sm">Getting Started</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            {steps.map((s) => (
-              <div key={s.label} className="flex items-center gap-3 text-sm">
-                {s.done ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> : <Circle className="w-4 h-4 text-muted-foreground shrink-0" />}
-                {s.href && !s.done ? <a href={s.href} className="hover:underline">{s.label}</a> : <span className={s.done ? "text-muted-foreground line-through" : ""}>{s.label}</span>}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  const gettingStartedSteps = [
+    { label: "Connect Instagram", done: hasConnections, href: "/connect" },
+    { label: "Set up profile", done: hasProfile, href: "/settings" },
+    { label: "Run Monitor to find content ideas", done: pendingCount > 0 || draftCount > 0 },
+    { label: "Review & publish your first post", done: false },
+  ];
 
-  // Data state
   const kpiCards = [
     { label: "Reach", value: formatNumber(kpis.totalReach), change: 0 },
     { label: "Eng. Rate", value: formatPercent(kpis.avgEngagementRate), change: 0 },
@@ -206,6 +174,21 @@ export default function DashboardPage() {
 
       {monitorResult && (
         <p className="text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2">{monitorResult}</p>
+      )}
+
+      {/* Getting Started — shown when setup is incomplete or no media yet */}
+      {(!hasProfile || !hasConnections || !hasMedia) && (
+        <Card>
+          <CardHeader><CardTitle className="text-sm">Getting Started</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            {gettingStartedSteps.map((s) => (
+              <div key={s.label} className="flex items-center gap-3 text-sm">
+                {s.done ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> : <Circle className="w-4 h-4 text-muted-foreground shrink-0" />}
+                {s.href && !s.done ? <a href={s.href} className="hover:underline">{s.label}</a> : <span className={s.done ? "text-muted-foreground line-through" : ""}>{s.label}</span>}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       )}
 
       {/* KPI Cards */}

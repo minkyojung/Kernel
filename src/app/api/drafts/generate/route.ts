@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProfile, getAllPatterns, getAllMediaWithInsights } from "@/lib/db";
-import { generateDrafts } from "@/lib/gemini";
+import { generateMultiPlatformDrafts } from "@/lib/openai";
 import { type MediaWithInsight, engagementRate } from "@/lib/metrics";
 import { fetchTodayActivity } from "@/lib/sources/github";
 import { fetchTopTechNews } from "@/lib/sources/news";
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     const patterns = getAllPatterns();
     const topPosts = getTopPosts(3);
 
-    const drafts = await generateDrafts(profile, source, sourceContent, {
+    const drafts = await generateMultiPlatformDrafts(profile, source, sourceContent, {
       patterns: patterns.length > 0 ? patterns : undefined,
       topPosts: topPosts.length > 0 ? topPosts : undefined,
     });
