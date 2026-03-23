@@ -18,6 +18,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (body.scheduled_at !== undefined) {
     updateDraftSchedule(id, body.scheduled_at);
   }
+  if (body.status !== undefined && body.content === undefined && body.scheduled_at === undefined) {
+    updateDraftStatus(id, body.status);
+  }
 
   const draft = getDraft(id);
   return NextResponse.json({ draft });

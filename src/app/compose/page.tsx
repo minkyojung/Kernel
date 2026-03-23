@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import {
   Newspaper, Github, Loader2, Check, ChevronDown, ChevronUp,
   Send, Clock, Copy, Trash2, Pencil, CalendarIcon, X,
+  ThumbsUp, ThumbsDown, Sparkles,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -60,6 +61,11 @@ export default function ComposePage() {
         <TabsTrigger value="create">Create</TabsTrigger>
         <TabsTrigger value="queue">
           Queue
+          {savedDrafts.filter(d => d.status === "pending_review").length > 0 && (
+            <span className="ml-1.5 text-[10px] bg-amber-100 text-amber-700 rounded-full px-1.5">
+              {savedDrafts.filter(d => d.status === "pending_review").length}
+            </span>
+          )}
           {savedDrafts.filter(d => d.status === "draft" || d.status === "scheduled").length > 0 && (
             <span className="ml-1.5 text-[10px] bg-primary/10 text-primary rounded-full px-1.5">
               {savedDrafts.filter(d => d.status === "draft" || d.status === "scheduled").length}
@@ -317,11 +323,30 @@ function QueueTab({ drafts, onUpdate }: { drafts: SavedDraft[]; onUpdate: () => 
   const [scheduleHour, setScheduleHour] = useState("09");
   const [scheduleMin, setScheduleMin] = useState("00");
 
+  const pendingItems = drafts.filter(d => d.status === "pending_review");
   const draftItems = drafts.filter(d => d.status === "draft");
   const scheduledItems = drafts.filter(d => d.status === "scheduled").sort((a, b) =>
     (a.scheduled_at || "").localeCompare(b.scheduled_at || ""));
   const publishedItems = drafts.filter(d => d.status === "published" || d.status === "failed")
     .sort((a, b) => (b.published_at || b.created_at).localeCompare(a.published_at || a.created_at));
+
+  const approveDraft = async (id: string) => {
+    try {
+      await fetch(`/api/drafts/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "draft" }),
+      });
+      toast.success("Approved — moved to drafts");
+      onUpdate();
+    } catch { toast.error("Failed to approve"); }
+  };
+
+  const rejectDraft = async (id: string) => {
+    await fetch(`/api/drafts/${id}`, { method: "DELETE" });
+    toast.success("Dismissed");
+    onUpdate();
+  };
 
   const publishDraft = async (id: string) => {
     setPublishing(id);
@@ -413,9 +438,39 @@ function QueueTab({ drafts, onUpdate }: { drafts: SavedDraft[]; onUpdate: () => 
 
   return (
     <div className="space-y-6">
-      {draftItems.length === 0 && scheduledItems.length === 0 && publishedItems.length === 0 && (
+      {pendingItems.length === 0 && draftItems.length === 0 && scheduledItems.length === 0 && publishedItems.length === 0 && (
         <div className="text-center py-12 text-sm text-muted-foreground">
           No drafts yet. Go to Create to generate some.
+        </div>
+      )}
+
+      {/* Pending Review — AI-generated, needs human approval */}
+      {pendingItems.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <p className="text-xs font-medium text-amber-600 uppercase tracking-wider">Pending Review</p>
+            <span className="text-[10px] bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5">
+              {pendingItems.length}
+            </span>
+          </div>
+          {pendingItems.map(d => (
+            <DraftCard key={d.id} draft={d} actions={
+              <>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(d)}>
+                  <Pencil className="w-3.5 h-3.5" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                  onClick={() => approveDraft(d.id)}>
+                  <ThumbsUp className="w-3.5 h-3.5" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                  onClick={() => rejectDraft(d.id)}>
+                  <ThumbsDown className="w-3.5 h-3.5" />
+                </Button>
+              </>
+            } />
+          ))}
         </div>
       )}
 

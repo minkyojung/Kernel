@@ -72,6 +72,18 @@ function initSchema(): void {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS source_items (
+      id TEXT PRIMARY KEY,
+      source_type TEXT NOT NULL CHECK(source_type IN ('news', 'github')),
+      title TEXT NOT NULL,
+      url TEXT,
+      raw_data TEXT NOT NULL DEFAULT '{}',
+      relevance_score REAL,
+      relevance_reason TEXT,
+      status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new', 'relevant', 'dismissed', 'used')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS content_patterns (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       pattern_type TEXT NOT NULL CHECK(pattern_type IN ('topic', 'format', 'tone', 'timing', 'hook', 'general')),
@@ -330,8 +342,10 @@ export function createDraft(draft: {
   title: string;
   content: string;
   scheduled_at?: string;
+  status?: string;
 }): DraftRow {
   const db = getDb();
+  const status = draft.status || (draft.scheduled_at ? "scheduled" : "draft");
   return db.prepare(`
     INSERT INTO drafts (id, source_type, platform, format, title, content, status, scheduled_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -343,7 +357,7 @@ export function createDraft(draft: {
     draft.format,
     draft.title,
     draft.content,
-    draft.scheduled_at ? "scheduled" : "draft",
+    status,
     draft.scheduled_at || null,
   ) as DraftRow;
 }
@@ -428,4 +442,68 @@ export function replaceAllPatterns(patterns: { pattern_type: string; pattern: st
 export function getAllPatterns(): ContentPatternRow[] {
   const db = getDb();
   return db.prepare("SELECT * FROM content_patterns ORDER BY pattern_type, id").all() as ContentPatternRow[];
+}
+
+// --- Source Items ---
+
+export interface SourceItemRow {
+  id: string;
+  source_type: string;
+  title: string;
+  url: string | null;
+  raw_data: string;
+  relevance_score: number | null;
+  relevance_reason: string | null;
+  status: string;
+  created_at: string;
+}
+
+export function upsertSourceItem(item: {
+  id: string;
+  source_type: string;
+  title: string;
+  url?: string;
+  raw_data: string;
+}): boolean {
+  const db = getDb();
+  const result = db.prepare(`
+    INSERT INTO source_items (id, source_type, title, url, raw_data)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO NOTHING
+  `).run(item.id, item.source_type, item.title, item.url || null, item.raw_data);
+  return result.changes > 0; // true = new item inserted
+}
+
+export function updateSourceRelevance(id: string, score: number, reason: string, status: string): void {
+  const db = getDb();
+  db.prepare(
+    "UPDATE source_items SET relevance_score = ?, relevance_reason = ?, status = ? WHERE id = ?",
+  ).run(score, reason, status, id);
+}
+
+export function markSourceUsed(id: string): void {
+  const db = getDb();
+  db.prepare("UPDATE source_items SET status = 'used' WHERE id = ?").run(id);
+}
+
+export function getRelevantSources(limit: number = 10): SourceItemRow[] {
+  const db = getDb();
+  return db.prepare(
+    "SELECT * FROM source_items WHERE status = 'relevant' ORDER BY relevance_score DESC, created_at DESC LIMIT ?",
+  ).all(limit) as SourceItemRow[];
+}
+
+export function getNewSources(): SourceItemRow[] {
+  const db = getDb();
+  return db.prepare(
+    "SELECT * FROM source_items WHERE status = 'new' ORDER BY created_at DESC",
+  ).all() as SourceItemRow[];
+}
+
+export function cleanOldSources(daysOld: number = 7): number {
+  const db = getDb();
+  const result = db.prepare(
+    "DELETE FROM source_items WHERE created_at < datetime('now', ?)",
+  ).run(`-${daysOld} days`);
+  return result.changes;
 }

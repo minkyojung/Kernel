@@ -206,6 +206,110 @@ Example output format:
   }
 }
 
+export async function scoreRelevance(
+  profile: ProfileRow,
+  items: Array<{ id: string; source_type: string; title: string; raw_data: string }>,
+): Promise<Array<{ id: string; score: number; reason: string }>> {
+  if (items.length === 0) return [];
+
+  const itemList = items
+    .map((item, i) => `${i + 1}. [${item.source_type}] "${item.title}"`)
+    .join("\n");
+
+  const prompt = `You are a content relevance analyst for a social media creator.
+
+${buildProfileContext(profile)}
+
+Below are candidate content sources. Score each one on relevance to this creator's niche, audience, and goals.
+
+## Candidates
+${itemList}
+
+Return ONLY a valid JSON array. Each object must have:
+- "index": the 1-based item number
+- "score": 0.0 to 1.0 (0 = irrelevant, 1 = perfect match)
+- "reason": one sentence explaining why it is or isn't relevant
+
+Rules:
+- Score > 0.6 = relevant (creator should consider making content about this)
+- Score 0.3-0.6 = maybe relevant (tangential to their niche)
+- Score < 0.3 = not relevant (skip)
+- Consider: Does their target audience care? Can the creator add unique perspective? Is it timely?
+
+Example: [{"index":1,"score":0.85,"reason":"Directly relates to AI tools which matches the creator's tech niche"}]`;
+
+  const raw = await callGemini(prompt);
+  const cleaned = raw.replace(/^```(?:json)?\s*/m, "").replace(/\s*```$/m, "").trim();
+
+  try {
+    const parsed = JSON.parse(cleaned) as Array<{ index: number; score: number; reason: string }>;
+    return parsed
+      .filter((p) => typeof p.index === "number" && typeof p.score === "number")
+      .map((p) => ({
+        id: items[p.index - 1]?.id ?? "",
+        score: Math.max(0, Math.min(1, p.score)),
+        reason: p.reason || "",
+      }))
+      .filter((p) => p.id !== "");
+  } catch {
+    console.error("Failed to parse relevance scores:", cleaned.slice(0, 200));
+    return [];
+  }
+}
+
+export async function generateDraftFromSource(
+  profile: ProfileRow,
+  source: { source_type: string; title: string; raw_data: string },
+  options?: {
+    patterns?: ContentPatternRow[];
+    topPosts?: MediaWithInsight[];
+  },
+): Promise<{ title: string; content: string; platform: string; format: string }> {
+  const performanceCtx = options
+    ? buildPerformanceContext(options.patterns || [], options.topPosts || [])
+    : "";
+
+  const prompt = `You are a social media content writer for a creator.
+
+${buildProfileContext(profile)}
+${performanceCtx ? "\n" + performanceCtx + "\n" : ""}
+## Source Material
+Type: ${source.source_type}
+Title: ${source.title}
+Data: ${source.raw_data}
+
+Write a single Threads post (the best platform for quick-turnaround content) based on this source.
+
+Requirements:
+- 500 characters or less
+- Conversational tone, not robotic
+- Add the creator's unique perspective or take — don't just summarize
+- 2-3 relevant hashtags
+- Written in Korean
+- Must be ready to post as-is
+
+Return ONLY valid JSON with these fields:
+- "title": short label for this draft (English, max 50 chars)
+- "content": the full post text (Korean)
+
+Example: {"title":"OpenAI GPT-5 reaction","content":"GPT-5 발표 봤는데..."}`;
+
+  const raw = await callGemini(prompt);
+  const cleaned = raw.replace(/^```(?:json)?\s*/m, "").replace(/\s*```$/m, "").trim();
+
+  try {
+    const parsed = JSON.parse(cleaned) as { title: string; content: string };
+    return {
+      title: parsed.title || source.title.slice(0, 50),
+      content: parsed.content || "",
+      platform: "threads",
+      format: "thread",
+    };
+  } catch {
+    throw new Error("Failed to parse generated draft");
+  }
+}
+
 function buildPerformanceContext(
   patterns: ContentPatternRow[],
   topPosts: MediaWithInsight[],

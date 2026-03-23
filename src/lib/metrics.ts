@@ -55,6 +55,13 @@ export function formatDate(ts: string): string {
   return `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
 }
 
+export function rankByER(media: MediaWithInsight[], limit: number = 3): MediaWithInsight[] {
+  return media
+    .filter((m) => (m.reach ?? 0) > 0)
+    .sort((a, b) => engagementRate(b) - engagementRate(a))
+    .slice(0, limit);
+}
+
 export interface DashboardKPIs {
   totalReach: number;
   avgEngagementRate: number;
